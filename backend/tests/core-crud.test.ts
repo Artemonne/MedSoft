@@ -112,6 +112,31 @@ describe('diagnosis CRUD', () => {
     diagnosisIds.push(diagnosisId);
   });
 
+  it('loads the initial diagnosis catalog idempotently', async () => {
+    const codes = ['J00001', 'I10001', 'E11901', 'K29001', 'M54501'];
+    const existing = await prisma.diagnosis.findMany({
+      where: { code: { in: codes } },
+      select: { id: true },
+    });
+
+    const firstResponse = await request(app).post('/api/diagnoses/seed');
+    expect(firstResponse.status).toBe(200);
+    expect(firstResponse.body).toMatchObject({
+      created: codes.length - existing.length,
+      total: codes.length,
+    });
+
+    const loaded = await prisma.diagnosis.findMany({ where: { code: { in: codes } } });
+    expect(loaded).toHaveLength(codes.length);
+    diagnosisIds.push(
+      ...loaded.filter((item) => !existing.some((row) => row.id === item.id)).map((item) => item.id),
+    );
+
+    const secondResponse = await request(app).post('/api/diagnoses/seed');
+    expect(secondResponse.status).toBe(200);
+    expect(secondResponse.body).toEqual({ created: 0, total: codes.length });
+  });
+
   it('gets the diagnosis by id', async () => {
     const response = await request(app).get(`/api/diagnoses/${diagnosisId}`);
 

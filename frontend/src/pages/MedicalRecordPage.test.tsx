@@ -110,6 +110,8 @@ describe('MedicalRecordPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/medical-records/7/diagnoses', expect.objectContaining({ method: 'POST', body: JSON.stringify({ workerId: 5, diagnosisId: 12 }) })));
+    expect(await screen.findByRole('button', { name: 'Начать редактирование' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Добавить диагноз' })).not.toBeInTheDocument();
   });
 
   it('sends workerId and text when adding a prescription', async () => {
@@ -119,6 +121,7 @@ describe('MedicalRecordPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/medical-records/7/prescriptions', expect.objectContaining({ method: 'POST', body: JSON.stringify({ workerId: 5, text: 'Новое назначение' }) })));
+    expect(await screen.findByRole('button', { name: 'Начать редактирование' })).toBeInTheDocument();
   });
 
   it('refetches state after editing a prescription', async () => {

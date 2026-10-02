@@ -18,6 +18,10 @@ export const diagnosisController = {
     response.status(201).json(await diagnosisService.create(data));
   },
 
+  async seed(_request: Request, response: Response) {
+    response.json(await diagnosisService.seed());
+  },
+
   async update(request: Request, response: Response) {
     const { id } = idParamsSchema.parse(request.params);
     const data = updateDiagnosisSchema.parse(request.body);

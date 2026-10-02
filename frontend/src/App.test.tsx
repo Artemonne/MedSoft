@@ -43,6 +43,33 @@ describe('App', () => {
     expect(screen.getByText('Терапевт')).toBeInTheDocument();
   });
 
+  it('opens a medical worker card', async () => {
+    const worker = {
+      id: 1, firstName: 'Иван', lastName: 'Иванов', position: 'Терапевт', isDeleted: false,
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z',
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(worker));
+    renderApp('/medical-workers/1');
+
+    expect(await screen.findByRole('heading', { name: 'Карточка медработника' })).toBeInTheDocument();
+    expect(screen.getByText('Иванов Иван')).toBeInTheDocument();
+    expect(screen.getByText('Терапевт')).toBeInTheDocument();
+  });
+
+  it('loads the initial diagnosis catalog', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => {
+      if (init?.method === 'POST') return Promise.resolve(jsonResponse({ created: 5, total: 5 }));
+      return Promise.resolve(jsonResponse([]));
+    });
+    renderApp('/diagnoses');
+    await screen.findByText('Диагнозы не найдены');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить исходные' }));
+
+    expect(await screen.findByText('Добавлено диагнозов: 5 из 5.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/diagnoses/seed', expect.objectContaining({ method: 'POST' }));
+  });
+
   it('rejects a diagnosis code that is not six characters', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]));
     renderApp('/diagnoses');

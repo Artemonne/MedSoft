@@ -1,10 +1,18 @@
 import { AppBar, Box, Container, Toolbar, Typography } from '@mui/material';
 import { NavLink, Outlet } from 'react-router-dom';
 
-const links = [
-  { to: '/medical-workers', label: 'Медработники' },
-  { to: '/diagnoses', label: 'Диагнозы' },
-  { to: '/patients', label: 'Пациенты' },
+const workspaces = [
+  {
+    label: 'Администратор',
+    links: [
+      { to: '/medical-workers', label: 'Медработники' },
+      { to: '/diagnoses', label: 'Диагнозы' },
+    ],
+  },
+  {
+    label: 'Медработник',
+    links: [{ to: '/patients', label: 'Пациенты' }],
+  },
 ];
 
 export function AppLayout() {
@@ -15,20 +23,23 @@ export function AppLayout() {
           <Typography variant="h6" component="div" sx={{ mr: { sm: 'auto' } }}>
             Учебная HIS
           </Typography>
-          <Box component="nav" aria-label="Основная навигация" sx={{ display: 'flex', gap: 0.5 }}>
-            {links.map((link) => (
-              <Box
-                key={link.to}
-                component={NavLink}
-                to={link.to}
-                sx={{
-                  color: 'inherit', textDecoration: 'none', px: 1.5, py: 1, borderRadius: 1,
-                  '&.active': { bgcolor: 'primary.dark' },
-                }}
-              >
-                {link.label}
-              </Box>
-            ))}
+          <Box component="nav" aria-label="Основная навигация" sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            {workspaces.map((workspace) => <Box key={workspace.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="caption" sx={{ opacity: 0.8, mr: 0.5 }}>{workspace.label}:</Typography>
+              {workspace.links.map((link) => (
+                <Box
+                  key={link.to}
+                  component={NavLink}
+                  to={link.to}
+                  sx={{
+                    color: 'inherit', textDecoration: 'none', px: 1.5, py: 1, borderRadius: 1,
+                    '&.active': { bgcolor: 'primary.dark' },
+                  }}
+                >
+                  {link.label}
+                </Box>
+              ))}
+            </Box>)}
           </Box>
         </Toolbar>
       </AppBar>

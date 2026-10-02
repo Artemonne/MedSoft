@@ -129,6 +129,10 @@ export function MedicalRecordPage() {
       queryClient.invalidateQueries({ queryKey: ['medical-record', id, 'events'], exact: true }),
     ]);
   };
+  const lockEditing = () => {
+    setWorker(null);
+    setWorkerId('');
+  };
   const handleMutationError = async (error: unknown) => {
     setFeedback({ message: getErrorMessage(error, 'medical-record'), severity: 'error' });
     if (error instanceof ApiError && error.status === 409) {
@@ -142,7 +146,7 @@ export function MedicalRecordPage() {
 
   const addDiagnosis = useMutation({
     mutationFn: () => medicalRecordsApi.addDiagnosis(id, { workerId: worker!.id, diagnosisId: Number(diagnosisId) }),
-    onSuccess: async () => { await refreshRecord(); setDiagnosisDialog(false); setDiagnosisId(''); setFeedback({ message: 'Диагноз добавлен.', severity: 'success' }); },
+    onSuccess: async () => { await refreshRecord(); setDiagnosisDialog(false); setDiagnosisId(''); lockEditing(); setFeedback({ message: 'Диагноз добавлен. ЭМК снова открыта только для просмотра.', severity: 'success' }); },
     onError: handleMutationError,
   });
   const savePrescription = useMutation({
@@ -150,7 +154,7 @@ export function MedicalRecordPage() {
       if (prescription) await medicalRecordsApi.editPrescription(id, prescription.prescriptionId, { workerId: worker!.id, text: prescriptionText.trim() });
       else await medicalRecordsApi.addPrescription(id, { workerId: worker!.id, text: prescriptionText.trim() });
     },
-    onSuccess: async () => { await refreshRecord(); setPrescription(undefined); setFeedback({ message: prescription ? 'Назначение обновлено.' : 'Назначение добавлено.', severity: 'success' }); },
+    onSuccess: async () => { await refreshRecord(); setPrescription(undefined); lockEditing(); setFeedback({ message: prescription ? 'Назначение обновлено. ЭМК снова открыта только для просмотра.' : 'Назначение добавлено. ЭМК снова открыта только для просмотра.', severity: 'success' }); },
     onError: handleMutationError,
   });
   const removeItem = useMutation({
@@ -158,7 +162,7 @@ export function MedicalRecordPage() {
       if (item.kind === 'diagnosis') await medicalRecordsApi.removeDiagnosis(id, item.id, { workerId: worker!.id });
       else await medicalRecordsApi.removePrescription(id, item.id, { workerId: worker!.id });
     },
-    onSuccess: async () => { const removed = removal; await refreshRecord(); setRemoval(null); setFeedback({ message: removed?.kind === 'diagnosis' ? 'Диагноз удалён.' : 'Назначение отменено.', severity: 'success' }); },
+    onSuccess: async () => { const removed = removal; await refreshRecord(); setRemoval(null); lockEditing(); setFeedback({ message: removed?.kind === 'diagnosis' ? 'Диагноз удалён. ЭМК снова открыта только для просмотра.' : 'Назначение отменено. ЭМК снова открыта только для просмотра.', severity: 'success' }); },
     onError: handleMutationError,
   });
 

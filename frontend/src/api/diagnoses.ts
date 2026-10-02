@@ -3,6 +3,7 @@ import type { Diagnosis, DiagnosisInput } from '../types';
 
 export const diagnosesApi = {
   list: () => apiRequest<Diagnosis[]>('/diagnoses'),
+  seed: () => apiRequest<{ created: number; total: number }>('/diagnoses/seed', { method: 'POST' }),
   create: (input: DiagnosisInput) =>
     apiRequest<Diagnosis>('/diagnoses', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: number, input: DiagnosisInput) =>

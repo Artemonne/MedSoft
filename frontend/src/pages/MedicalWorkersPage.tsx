@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   Button, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
@@ -22,6 +23,7 @@ function validate(form: MedicalWorkerInput) {
 }
 
 export function MedicalWorkersPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ['medical-workers'], queryFn: medicalWorkersApi.list });
   const [editing, setEditing] = useState<MedicalWorker | null | undefined>(undefined);
@@ -75,7 +77,7 @@ export function MedicalWorkersPage() {
               {query.data.map((worker) => (
                 <TableRow key={worker.id} hover>
                   <TableCell>{worker.id}</TableCell><TableCell>{worker.firstName}</TableCell><TableCell>{worker.lastName}</TableCell><TableCell>{worker.position}</TableCell>
-                  <TableCell align="right"><Button onClick={() => openForm(worker)}>Редактировать</Button><Button color="error" onClick={() => setDeleting(worker)}>Удалить</Button></TableCell>
+                  <TableCell align="right"><Button onClick={() => navigate(`/medical-workers/${worker.id}`)}>Открыть</Button><Button onClick={() => openForm(worker)}>Редактировать</Button><Button color="error" onClick={() => setDeleting(worker)}>Удалить</Button></TableCell>
                 </TableRow>
               ))}
             </TableBody>

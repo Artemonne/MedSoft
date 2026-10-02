@@ -5,6 +5,7 @@ import { asyncHandler } from '../lib/async-handler.js';
 export const diagnosesRouter = Router();
 
 diagnosesRouter.get('/', asyncHandler(diagnosisController.list));
+diagnosesRouter.post('/seed', asyncHandler(diagnosisController.seed));
 diagnosesRouter.get('/:id', asyncHandler(diagnosisController.getById));
 diagnosesRouter.post('/', asyncHandler(diagnosisController.create));
 diagnosesRouter.put('/:id', asyncHandler(diagnosisController.update));
