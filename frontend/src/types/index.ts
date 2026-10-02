@@ -56,6 +56,46 @@ export interface MedicalRecordSummary {
   createdAt: string;
 }
 
+export interface MedicalRecordDiagnosis {
+  diagnosisId: number;
+  code: string;
+  name: string;
+}
+
+export interface MedicalRecordPrescription {
+  prescriptionId: string;
+  text: string;
+}
+
+export interface MedicalRecordState extends MedicalRecordSummary {
+  diagnoses: MedicalRecordDiagnosis[];
+  prescriptions: MedicalRecordPrescription[];
+}
+
+export interface MedicalRecordEventWorker {
+  id: number;
+  firstName: string;
+  lastName: string;
+  position: string;
+  isDeleted: boolean;
+}
+
+interface MedicalRecordEventBase {
+  version: number;
+  createdAt: string;
+  worker: MedicalRecordEventWorker;
+}
+
+export type MedicalRecordEvent =
+  | (MedicalRecordEventBase & {
+      type: 'DIAGNOSIS_ADDED' | 'DIAGNOSIS_REMOVED';
+      payload: MedicalRecordDiagnosis;
+    })
+  | (MedicalRecordEventBase & {
+      type: 'PRESCRIPTION_ADDED' | 'PRESCRIPTION_REMOVED';
+      payload: MedicalRecordPrescription;
+    });
+
 export interface ApiErrorBody {
   error?: {
     code?: string;
