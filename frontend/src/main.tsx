@@ -5,8 +5,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import App from './App';
 
-const queryClient = new QueryClient();
-const theme = createTheme();
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1 } } });
+const theme = createTheme({
+  palette: { primary: { main: '#1565c0' }, background: { default: '#f7f9fc' } },
+  typography: { fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
+  shape: { borderRadius: 10 },
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
