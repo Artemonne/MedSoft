@@ -6,6 +6,7 @@ import { getErrorMessage } from '../api/client';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ErrorState, FeedbackSnackbar, LoadingState } from '../components/PageFeedback';
 import type { Diagnosis, DiagnosisInput } from '../types';
+import { useAuth } from '../auth/AuthContext';
 
 const emptyForm: DiagnosisInput = { code: '', name: '' };
 
@@ -17,6 +18,8 @@ function validate(form: DiagnosisInput) {
 }
 
 export function DiagnosesPage() {
+  const { identity } = useAuth();
+  const canManage = identity?.subjectType === 'admin' || (identity?.subjectType === 'user' && identity.medicalWorker.role === 'doctor');
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ['diagnoses'], queryFn: diagnosesApi.list });
   const [editing, setEditing] = useState<Diagnosis | null | undefined>(undefined);
@@ -56,14 +59,14 @@ export function DiagnosesPage() {
   return <Stack gap={3}>
     <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} gap={2}>
       <Typography variant="h4" component="h1">Диагнозы</Typography>
-      <Stack direction="row" gap={1}>
+      {canManage && <Stack direction="row" gap={1}>
         <Button variant="outlined" onClick={() => seed.mutate()} disabled={seed.isPending}>Загрузить исходные</Button>
         <Button variant="contained" onClick={() => openForm(null)}>Создать</Button>
-      </Stack>
+      </Stack>}
     </Stack>
     {query.isPending ? <LoadingState /> : query.isError ? <ErrorState /> : <TableContainer component={Paper}><Table>
       <TableHead><TableRow><TableCell>ID</TableCell><TableCell>Код</TableCell><TableCell>Наименование</TableCell><TableCell align="right">Действия</TableCell></TableRow></TableHead>
-      <TableBody>{query.data.length === 0 && <TableRow><TableCell colSpan={4} align="center">Диагнозы не найдены</TableCell></TableRow>}{query.data.map((item) => <TableRow key={item.id} hover><TableCell>{item.id}</TableCell><TableCell>{item.code}</TableCell><TableCell>{item.name}</TableCell><TableCell align="right"><Button onClick={() => openForm(item)}>Редактировать</Button><Button color="error" onClick={() => setDeleting(item)}>Удалить</Button></TableCell></TableRow>)}</TableBody>
+      <TableBody>{query.data.length === 0 && <TableRow><TableCell colSpan={4} align="center">Диагнозы не найдены</TableCell></TableRow>}{query.data.map((item) => <TableRow key={item.id} hover><TableCell>{item.id}</TableCell><TableCell>{item.code}</TableCell><TableCell>{item.name}</TableCell><TableCell align="right">{canManage && <><Button onClick={() => openForm(item)}>Редактировать</Button><Button color="error" onClick={() => setDeleting(item)}>Удалить</Button></>}</TableCell></TableRow>)}</TableBody>
     </Table></TableContainer>}
     <Dialog open={editing !== undefined} onClose={() => !save.isPending && setEditing(undefined)} fullWidth maxWidth="sm"><DialogTitle>{editing ? 'Редактировать диагноз' : 'Новый диагноз'}</DialogTitle><DialogContent><Stack gap={2} sx={{ pt: 1 }}>
       <TextField label="Код" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} error={Boolean(errors.code)} helperText={errors.code} autoFocus inputProps={{ maxLength: 6 }} />

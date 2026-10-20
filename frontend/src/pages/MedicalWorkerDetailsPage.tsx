@@ -22,7 +22,7 @@ export function MedicalWorkerDetailsPage() {
 
   const worker = query.data;
   return <Stack gap={3}>
-    <Button component={Link} to="/medical-workers" sx={{ alignSelf: 'flex-start' }}>← К списку медработников</Button>
+    <Button component={Link} to="/admin/medical-workers" sx={{ alignSelf: 'flex-start' }}>← К списку медработников</Button>
     <Typography variant="h4" component="h1">Карточка медработника</Typography>
     <Card><CardContent><Stack gap={1}>
       <Typography variant="h5">{worker.lastName} {worker.firstName}</Typography>

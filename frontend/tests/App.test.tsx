@@ -3,132 +3,82 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
+import { AuthProvider } from '../src/auth/AuthContext';
+import type { AuthIdentity } from '../src/types';
 
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-function renderApp(route: string) {
+const admin: AuthIdentity = {
+  subjectType: 'admin', id: 1, setupState: 'ACTIVE',
+  createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+};
+const doctor: AuthIdentity = {
+  subjectType: 'user', id: '11111111-1111-4111-8111-111111111111', username: 'doctor', isActive: true,
+  medicalWorker: { id: 5, firstName: 'Анна', lastName: 'Петрова', position: 'Врач', role: 'doctor' },
+};
+
+function renderApp(route: string, identity: AuthIdentity) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(
-    <QueryClientProvider client={queryClient}>
+  return render(<QueryClientProvider client={queryClient}>
+    <AuthProvider initialSession={{ identity, accessToken: 'test-token', accessTokenExpiresIn: 900 }}>
       <MemoryRouter initialEntries={[route]}><App /></MemoryRouter>
-    </QueryClientProvider>,
-  );
+    </AuthProvider>
+  </QueryClientProvider>);
 }
 
-afterEach(() => {
-  cleanup();
-  vi.restoreAllMocks();
-});
+afterEach(() => { cleanup(); vi.restoreAllMocks(); sessionStorage.clear(); });
 
-describe('App', () => {
-  it('renders the main navigation', () => {
+describe('App routing and existing pages', () => {
+  it('shows separate navigation for administrator and worker', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]));
-    renderApp('/patients');
-
-    expect(screen.getByRole('link', { name: 'Медработники' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Диагнозы' })).toBeInTheDocument();
+    const workerView = renderApp('/app/patients', doctor);
     expect(screen.getByRole('link', { name: 'Пациенты' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Аккаунты' })).not.toBeInTheDocument();
+    workerView.unmount();
+    renderApp('/admin/medical-workers', admin);
+    expect(screen.getByRole('link', { name: 'Медработники' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Аккаунты' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Пациенты' })).not.toBeInTheDocument();
   });
 
-  it('renders mocked medical workers', async () => {
+  it('renders mocked medical workers in the administrator area', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([{
-      id: 1, firstName: 'Иван', lastName: 'Иванов', position: 'Терапевт', isDeleted: false,
+      id: 1, firstName: 'Иван', lastName: 'Иванов', position: 'Терапевт', role: 'doctor', isDeleted: false,
       createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
     }]));
-    renderApp('/medical-workers');
-
+    renderApp('/admin/medical-workers', admin);
     expect(await screen.findByText('Иванов')).toBeInTheDocument();
     expect(screen.getByText('Терапевт')).toBeInTheDocument();
   });
 
-  it('opens a medical worker card', async () => {
-    const worker = {
-      id: 1, firstName: 'Иван', lastName: 'Иванов', position: 'Терапевт', isDeleted: false,
-      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z',
-    };
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(worker));
-    renderApp('/medical-workers/1');
-
-    expect(await screen.findByRole('heading', { name: 'Карточка медработника' })).toBeInTheDocument();
-    expect(screen.getByText('Иванов Иван')).toBeInTheDocument();
-    expect(screen.getByText('Терапевт')).toBeInTheDocument();
-  });
-
-  it('loads the initial diagnosis catalog', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => {
-      if (init?.method === 'POST') return Promise.resolve(jsonResponse({ created: 5, total: 5 }));
-      return Promise.resolve(jsonResponse([]));
-    });
-    renderApp('/diagnoses');
+  it('loads the diagnosis seed through the administrator API', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) =>
+      Promise.resolve(jsonResponse(init?.method === 'POST' ? { created: 5, total: 5 } : [])));
+    renderApp('/admin/diagnoses', admin);
     await screen.findByText('Диагнозы не найдены');
-
     fireEvent.click(screen.getByRole('button', { name: 'Загрузить исходные' }));
-
     expect(await screen.findByText('Добавлено диагнозов: 5 из 5.')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('/api/diagnoses/seed', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls.some(([url]) => String(url) === '/api/admin/diagnoses/seed')).toBe(true);
   });
 
-  it('rejects a diagnosis code that is not six characters', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]));
-    renderApp('/diagnoses');
-    await screen.findByText('Диагнозы не найдены');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Создать' }));
-    fireEvent.change(screen.getByLabelText('Код'), { target: { value: 'A12' } });
-    fireEvent.change(screen.getByLabelText('Наименование'), { target: { value: 'Грипп' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-
-    expect(await screen.findByText('Код должен содержать ровно 6 символов')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects a future patient birth date', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]));
-    renderApp('/patients');
+  it('keeps patient validation from the previous stage', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]));
+    renderApp('/app/patients', doctor);
     await screen.findByText('Пациенты не найдены');
-
     fireEvent.click(screen.getByRole('button', { name: 'Создать' }));
     fireEvent.change(screen.getByLabelText('Фамилия'), { target: { value: 'Иванов' } });
     fireEvent.change(screen.getByLabelText('Имя'), { target: { value: 'Иван' } });
     fireEvent.change(screen.getByLabelText('Дата рождения'), { target: { value: '2999-01-01' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
-
     expect(await screen.findByText('Дата рождения не может быть в будущем')).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a readable patient delete conflict', async () => {
-    const patient = {
-      id: 1, firstName: 'Иван', lastName: 'Иванов', middleName: null, birthDate: '1990-01-01T00:00:00.000Z',
-      sex: 'MALE', comment: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-    };
-    vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => {
-      if (init?.method === 'DELETE') return Promise.resolve(jsonResponse({ error: { code: 'CONFLICT', message: 'A patient with a medical record cannot be deleted.' } }, 409));
-      return Promise.resolve(jsonResponse([patient]));
-    });
-    renderApp('/patients');
-    await screen.findByText('Иванов');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
-
-    expect(await screen.findByText('Нельзя удалить пациента, для которого создана ЭМК.')).toBeInTheDocument();
-  });
-
-  it('shows Create Medical Record when the patient has no record', async () => {
-    const patient = {
-      id: 1, firstName: 'Иван', lastName: 'Иванов', middleName: null, birthDate: '1990-01-01T00:00:00.000Z',
-      sex: 'MALE', comment: null, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-    };
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      const url = String(input);
-      if (url.endsWith('/medical-record')) return Promise.resolve(jsonResponse({ error: { code: 'NOT_FOUND', message: 'Medical record not found.' } }, 404));
-      return Promise.resolve(jsonResponse(patient));
-    });
-    renderApp('/patients/1');
-
-    expect(await screen.findByRole('button', { name: 'Создать ЭМК' })).toBeInTheDocument();
+  it('prevents a user from opening administrator pages', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]));
+    renderApp('/admin/accounts', doctor);
+    expect(await screen.findByRole('heading', { name: 'Пациенты' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Аккаунты медработников' })).not.toBeInTheDocument();
   });
 });

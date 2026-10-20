@@ -11,6 +11,7 @@ import { getErrorMessage } from '../api/client';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ErrorState, FeedbackSnackbar, LoadingState } from '../components/PageFeedback';
 import type { Patient, PatientInput, Sex } from '../types';
+import { useAuth } from '../auth/AuthContext';
 
 const emptyForm: PatientInput = { firstName: '', lastName: '', middleName: null, birthDate: '', sex: 'UNKNOWN', comment: null };
 const sexLabels: Record<Sex, string> = { MALE: 'Мужской', FEMALE: 'Женский', UNKNOWN: 'Не установлен' };
@@ -33,6 +34,10 @@ function validate(form: PatientInput) {
 }
 
 export function PatientsPage() {
+  const { identity } = useAuth();
+  const role = identity?.subjectType === 'user' ? identity.medicalWorker.role : 'other';
+  const canWrite = role === 'doctor' || role === 'nurse';
+  const canDelete = role === 'doctor';
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ['patients'], queryFn: patientsApi.list });
@@ -62,12 +67,12 @@ export function PatientsPage() {
   const submit = () => { const next = validate(form); setErrors(next); if (Object.keys(next).length === 0) save.mutate(); };
 
   return <Stack gap={3}>
-    <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h4" component="h1">Пациенты</Typography><Button variant="contained" onClick={() => openForm(null)}>Создать</Button></Stack>
+    <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h4" component="h1">Пациенты</Typography>{canWrite && <Button variant="contained" onClick={() => openForm(null)}>Создать</Button>}</Stack>
     {query.isPending ? <LoadingState /> : query.isError ? <ErrorState /> : <TableContainer component={Paper}><Table>
       <TableHead><TableRow><TableCell>ID</TableCell><TableCell>Фамилия</TableCell><TableCell>Имя</TableCell><TableCell>Отчество</TableCell><TableCell>Дата рождения</TableCell><TableCell>Пол</TableCell><TableCell>Комментарий</TableCell><TableCell align="right">Действия</TableCell></TableRow></TableHead>
       <TableBody>{query.data.length === 0 && <TableRow><TableCell colSpan={8} align="center">Пациенты не найдены</TableCell></TableRow>}{query.data.map((patient) => <TableRow key={patient.id} hover>
         <TableCell>{patient.id}</TableCell><TableCell>{patient.lastName}</TableCell><TableCell>{patient.firstName}</TableCell><TableCell>{patient.middleName || '—'}</TableCell><TableCell>{new Date(patient.birthDate).toLocaleDateString('ru-RU', { timeZone: 'UTC' })}</TableCell><TableCell>{sexLabels[patient.sex]}</TableCell><TableCell>{patient.comment || '—'}</TableCell>
-        <TableCell align="right"><Button onClick={() => navigate(`/patients/${patient.id}`)}>Открыть</Button><Button onClick={() => openForm(patient)}>Редактировать</Button><Button color="error" onClick={() => setDeleting(patient)}>Удалить</Button></TableCell>
+        <TableCell align="right"><Button onClick={() => navigate(`/app/patients/${patient.id}`)}>Открыть</Button>{canWrite && <Button onClick={() => openForm(patient)}>Редактировать</Button>}{canDelete && <Button color="error" onClick={() => setDeleting(patient)}>Удалить</Button>}</TableCell>
       </TableRow>)}</TableBody>
     </Table></TableContainer>}
     <Dialog open={editing !== undefined} onClose={() => !save.isPending && setEditing(undefined)} fullWidth maxWidth="sm"><DialogTitle>{editing ? 'Редактировать пациента' : 'Новый пациент'}</DialogTitle><DialogContent><Stack gap={2} sx={{ pt: 1 }}>

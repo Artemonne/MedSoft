@@ -1,5 +1,31 @@
 export type MedicalWorkerRole = 'doctor' | 'laboratory-technician' | 'nurse' | 'other';
 
+export interface AuthenticatedMedicalWorker {
+  id: number;
+  firstName: string;
+  lastName: string;
+  position: string;
+  role: MedicalWorkerRole;
+}
+
+export interface UserAccountIdentity {
+  subjectType: 'user';
+  id: string;
+  username: string;
+  isActive: boolean;
+  medicalWorker: AuthenticatedMedicalWorker;
+}
+
+export interface AdministratorIdentity {
+  subjectType: 'admin';
+  id: number;
+  setupState: 'ACTIVE';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AuthIdentity = UserAccountIdentity | AdministratorIdentity;
+
 export interface MedicalWorker {
   id: number;
   firstName: string;
@@ -57,6 +83,7 @@ export interface PatientInput {
 export interface MedicalRecordSummary {
   id: number;
   patientId: number;
+  isEditingLocked: boolean;
   createdAt: string;
 }
 

@@ -1,15 +1,11 @@
 import { apiRequest } from './client';
 import type { MedicalRecordEvent, MedicalRecordState } from '../types';
 
-interface WorkerInput {
-  workerId: number;
-}
-
-interface DiagnosisInput extends WorkerInput {
+interface DiagnosisInput {
   diagnosisId: number;
 }
 
-interface PrescriptionInput extends WorkerInput {
+interface PrescriptionInput {
   text: string;
 }
 
@@ -18,15 +14,18 @@ export const medicalRecordsApi = {
   getAt: (id: number, datetime: string) =>
     apiRequest<MedicalRecordState>(`/medical-records/${id}?at=${encodeURIComponent(datetime)}`),
   events: (id: number) => apiRequest<MedicalRecordEvent[]>(`/medical-records/${id}/events`),
+  unlock: (id: number) => apiRequest<MedicalRecordState>(`/medical-records/${id}/unlock`, {
+    method: 'POST', body: JSON.stringify({}),
+  }),
   addDiagnosis: (id: number, input: DiagnosisInput) =>
     apiRequest<{ diagnosis: MedicalRecordState['diagnoses'][number]; version: number }>(
       `/medical-records/${id}/diagnoses`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  removeDiagnosis: (id: number, diagnosisId: number, input: WorkerInput) =>
+  removeDiagnosis: (id: number, diagnosisId: number) =>
     apiRequest<{ diagnosis: MedicalRecordState['diagnoses'][number]; version: number }>(
       `/medical-records/${id}/diagnoses/${diagnosisId}`,
-      { method: 'DELETE', body: JSON.stringify(input) },
+      { method: 'DELETE', body: JSON.stringify({}) },
     ),
   addPrescription: (id: number, input: PrescriptionInput) =>
     apiRequest<{ prescriptionId: string; text: string; version: number }>(
@@ -38,9 +37,9 @@ export const medicalRecordsApi = {
       `/medical-records/${id}/prescriptions/${prescriptionId}`,
       { method: 'PUT', body: JSON.stringify(input) },
     ),
-  removePrescription: (id: number, prescriptionId: string, input: WorkerInput) =>
+  removePrescription: (id: number, prescriptionId: string) =>
     apiRequest<{ prescription: MedicalRecordState['prescriptions'][number]; version: number }>(
       `/medical-records/${id}/prescriptions/${prescriptionId}`,
-      { method: 'DELETE', body: JSON.stringify(input) },
+      { method: 'DELETE', body: JSON.stringify({}) },
     ),
 };

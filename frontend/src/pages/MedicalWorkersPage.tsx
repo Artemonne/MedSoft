@@ -15,10 +15,11 @@ const emptyForm: MedicalWorkerInput = { firstName: '', lastName: '', position: '
 
 function validate(form: MedicalWorkerInput) {
   const errors: Partial<Record<keyof MedicalWorkerInput, string>> = {};
-  for (const field of ['firstName', 'lastName', 'position'] as const) {
+  for (const field of ['firstName', 'lastName'] as const) {
     const length = form[field].trim().length;
-    if (length < 3 || length > 24) errors[field] = 'От 3 до 24 символов';
+    if (length < 1 || length > 24) errors[field] = 'От 1 до 24 символов';
   }
+  if (form.position.trim().length < 3 || form.position.trim().length > 24) errors.position = 'От 3 до 24 символов';
   return errors;
 }
 
@@ -66,7 +67,7 @@ export function MedicalWorkersPage() {
     <Stack gap={3}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
         <Typography variant="h4" component="h1">Медработники</Typography>
-        <Button variant="contained" onClick={() => openForm(null)}>Создать</Button>
+        <Stack direction="row" gap={1}><Button variant="outlined" onClick={() => navigate('/admin/accounts')}>Управление аккаунтами</Button><Button variant="contained" onClick={() => openForm(null)}>Создать</Button></Stack>
       </Stack>
       {query.isPending ? <LoadingState /> : query.isError ? <ErrorState /> : (
         <TableContainer component={Paper}>
@@ -77,7 +78,7 @@ export function MedicalWorkersPage() {
               {query.data.map((worker) => (
                 <TableRow key={worker.id} hover>
                   <TableCell>{worker.id}</TableCell><TableCell>{worker.firstName}</TableCell><TableCell>{worker.lastName}</TableCell><TableCell>{worker.position}</TableCell>
-                  <TableCell align="right"><Button onClick={() => navigate(`/medical-workers/${worker.id}`)}>Открыть</Button><Button onClick={() => openForm(worker)}>Редактировать</Button><Button color="error" onClick={() => setDeleting(worker)}>Удалить</Button></TableCell>
+                  <TableCell align="right"><Button onClick={() => navigate(`/admin/medical-workers/${worker.id}`)}>Открыть</Button><Button onClick={() => openForm(worker)}>Редактировать</Button><Button color="error" onClick={() => setDeleting(worker)}>Удалить</Button></TableCell>
                 </TableRow>
               ))}
             </TableBody>

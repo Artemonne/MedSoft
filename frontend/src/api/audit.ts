@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, getApiSession } from './client';
 
 export const AUDIT_POLL_INTERVAL_MS = 1_000;
 
@@ -12,6 +12,13 @@ export interface AuditEvent {
   metadata: Record<string, unknown> | null;
   accountId: string | null;
   systemAdministratorId: number | null;
+}
+
+export interface AuditHistory {
+  events: AuditEvent[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  serverTime: string;
 }
 
 interface AuditChanges {
@@ -43,6 +50,18 @@ export function getAuditCheckpoint(accessToken: string): Promise<AuditCheckpoint
     headers: authorization(accessToken),
     cache: 'no-store',
   });
+}
+
+export function getAuditHistory(limit = 50, before?: string): Promise<AuditHistory> {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (before) query.set('before', before);
+  return apiRequest(`/admin/audit?${query.toString()}`);
+}
+
+export function currentAdminAccessToken(): string {
+  const session = getApiSession();
+  if (session?.subjectType !== 'admin') throw new Error('Administrator session is unavailable.');
+  return session.accessToken;
 }
 
 export function startAuditPolling(options: AuditPollingOptions): () => void {

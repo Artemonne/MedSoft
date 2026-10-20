@@ -9,12 +9,12 @@ import { Link, useParams } from 'react-router-dom';
 import { ApiError, getErrorMessage } from '../api/client';
 import { diagnosesApi } from '../api/diagnoses';
 import { medicalRecordsApi } from '../api/medical-records';
-import { medicalWorkersApi } from '../api/medical-workers';
 import { patientsApi } from '../api/patients';
+import { useAuth } from '../auth/AuthContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ErrorState, FeedbackSnackbar, LoadingState } from '../components/PageFeedback';
 import type {
-  MedicalRecordEvent, MedicalRecordPrescription, MedicalRecordState, MedicalWorker, Sex,
+  MedicalRecordEvent, MedicalRecordPrescription, MedicalRecordState, Sex,
 } from '../types';
 
 const sexLabels: Record<Sex, string> = { MALE: 'Мужской', FEMALE: 'Женский', UNKNOWN: 'Не установлен' };
@@ -36,26 +36,26 @@ interface Feedback {
 
 function RecordStateView({
   state,
-  worker,
+  editable,
   onAddDiagnosis,
   onEditPrescription,
   onRemove,
 }: {
   state: MedicalRecordState;
-  worker: MedicalWorker | null;
+  editable: boolean;
   onAddDiagnosis?: () => void;
   onEditPrescription?: (prescription: MedicalRecordPrescription | null) => void;
   onRemove?: (removal: Removal) => void;
 }) {
-  const editable = Boolean(worker && onAddDiagnosis && onEditPrescription && onRemove);
+  const editingEnabled = Boolean(editable && onAddDiagnosis && onEditPrescription && onRemove);
   return <Stack gap={3}>
     <Card variant="outlined"><CardContent><Stack gap={2}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
         <Typography variant="h5">Диагнозы</Typography>
-        {editable && <Button variant="contained" onClick={onAddDiagnosis}>Добавить диагноз</Button>}
+        {editingEnabled && <Button variant="contained" onClick={onAddDiagnosis}>Добавить диагноз</Button>}
       </Stack>
       {state.diagnoses.length === 0 ? <Typography color="text.secondary">Активных диагнозов нет</Typography> : <List disablePadding>
-        {state.diagnoses.map((diagnosis) => <ListItem key={diagnosis.diagnosisId} divider secondaryAction={editable ? <Button color="error" onClick={() => onRemove?.({ kind: 'diagnosis', id: diagnosis.diagnosisId, label: `${diagnosis.code} — ${diagnosis.name}` })}>Удалить</Button> : undefined}>
+        {state.diagnoses.map((diagnosis) => <ListItem key={diagnosis.diagnosisId} divider secondaryAction={editingEnabled ? <Button color="error" onClick={() => onRemove?.({ kind: 'diagnosis', id: diagnosis.diagnosisId, label: `${diagnosis.code} — ${diagnosis.name}` })}>Удалить</Button> : undefined}>
           <ListItemText primary={`${diagnosis.code} — ${diagnosis.name}`} />
         </ListItem>)}
       </List>}
@@ -63,10 +63,10 @@ function RecordStateView({
     <Card variant="outlined"><CardContent><Stack gap={2}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
         <Typography variant="h5">Назначения</Typography>
-        {editable && <Button variant="contained" onClick={() => onEditPrescription?.(null)}>Добавить назначение</Button>}
+        {editingEnabled && <Button variant="contained" onClick={() => onEditPrescription?.(null)}>Добавить назначение</Button>}
       </Stack>
       {state.prescriptions.length === 0 ? <Typography color="text.secondary">Активных назначений нет</Typography> : <List disablePadding>
-        {state.prescriptions.map((prescription) => <ListItem key={prescription.prescriptionId} divider secondaryAction={editable ? <Stack direction="row"><Button onClick={() => onEditPrescription?.(prescription)}>Редактировать</Button><Button color="error" onClick={() => onRemove?.({ kind: 'prescription', id: prescription.prescriptionId, label: prescription.text })}>Отменить</Button></Stack> : undefined}>
+        {state.prescriptions.map((prescription) => <ListItem key={prescription.prescriptionId} divider secondaryAction={editingEnabled ? <Stack direction="row"><Button onClick={() => onEditPrescription?.(prescription)}>Редактировать</Button><Button color="error" onClick={() => onRemove?.({ kind: 'prescription', id: prescription.prescriptionId, label: prescription.text })}>Отменить</Button></Stack> : undefined}>
           <ListItemText primary={prescription.text} />
         </ListItem>)}
       </List>}
@@ -96,14 +96,15 @@ function EventHistory({ events }: { events: MedicalRecordEvent[] }) {
 }
 
 export function MedicalRecordPage() {
+  const { identity } = useAuth();
+  const role = identity?.subjectType === 'user' ? identity.medicalWorker.role : 'other';
+  const canModify = role === 'doctor' || role === 'nurse';
+  const canUnlock = role === 'doctor';
   const { id: idParam } = useParams();
   const id = Number(idParam);
   const validId = Number.isInteger(id) && id > 0;
   const queryClient = useQueryClient();
   const [tab, setTab] = useState(0);
-  const [workerDialog, setWorkerDialog] = useState(false);
-  const [workerId, setWorkerId] = useState('');
-  const [worker, setWorker] = useState<MedicalWorker | null>(null);
   const [diagnosisDialog, setDiagnosisDialog] = useState(false);
   const [diagnosisId, setDiagnosisId] = useState('');
   const [prescription, setPrescription] = useState<MedicalRecordPrescription | null | undefined>(undefined);
@@ -118,7 +119,6 @@ export function MedicalRecordPage() {
   const recordQuery = useQuery({ queryKey: ['medical-record', id], queryFn: () => medicalRecordsApi.get(id), enabled: validId, retry: false });
   const patientId = recordQuery.data?.patientId ?? 0;
   const patientQuery = useQuery({ queryKey: ['patients', patientId], queryFn: () => patientsApi.get(patientId), enabled: patientId > 0, retry: false });
-  const workersQuery = useQuery({ queryKey: ['medical-workers'], queryFn: medicalWorkersApi.list, enabled: workerDialog });
   const diagnosesQuery = useQuery({ queryKey: ['diagnoses'], queryFn: diagnosesApi.list, enabled: diagnosisDialog });
   const historyQuery = useQuery({ queryKey: ['medical-record', id, 'events'], queryFn: () => medicalRecordsApi.events(id), enabled: validId && tab === 1, retry: false });
   const historicalQuery = useQuery({ queryKey: ['medical-record', id, 'historical', historicalTimestamp], queryFn: () => medicalRecordsApi.getAt(id, historicalTimestamp!), enabled: validId && Boolean(historicalTimestamp), retry: false });
@@ -129,40 +129,37 @@ export function MedicalRecordPage() {
       queryClient.invalidateQueries({ queryKey: ['medical-record', id, 'events'], exact: true }),
     ]);
   };
-  const lockEditing = () => {
-    setWorker(null);
-    setWorkerId('');
-  };
   const handleMutationError = async (error: unknown) => {
     setFeedback({ message: getErrorMessage(error, 'medical-record'), severity: 'error' });
     if (error instanceof ApiError && error.status === 409) {
       await refreshRecord();
-      if (error.message.includes('deleted medical worker')) {
-        setWorker(null);
-        setWorkerId('');
-      }
     }
   };
 
   const addDiagnosis = useMutation({
-    mutationFn: () => medicalRecordsApi.addDiagnosis(id, { workerId: worker!.id, diagnosisId: Number(diagnosisId) }),
-    onSuccess: async () => { await refreshRecord(); setDiagnosisDialog(false); setDiagnosisId(''); lockEditing(); setFeedback({ message: 'Диагноз добавлен. ЭМК снова открыта только для просмотра.', severity: 'success' }); },
+    mutationFn: () => medicalRecordsApi.addDiagnosis(id, { diagnosisId: Number(diagnosisId) }),
+    onSuccess: async () => { await refreshRecord(); setDiagnosisDialog(false); setDiagnosisId(''); setFeedback({ message: 'Диагноз добавлен.', severity: 'success' }); },
     onError: handleMutationError,
   });
   const savePrescription = useMutation({
     mutationFn: async () => {
-      if (prescription) await medicalRecordsApi.editPrescription(id, prescription.prescriptionId, { workerId: worker!.id, text: prescriptionText.trim() });
-      else await medicalRecordsApi.addPrescription(id, { workerId: worker!.id, text: prescriptionText.trim() });
+      if (prescription) await medicalRecordsApi.editPrescription(id, prescription.prescriptionId, { text: prescriptionText.trim() });
+      else await medicalRecordsApi.addPrescription(id, { text: prescriptionText.trim() });
     },
-    onSuccess: async () => { await refreshRecord(); setPrescription(undefined); lockEditing(); setFeedback({ message: prescription ? 'Назначение обновлено. ЭМК снова открыта только для просмотра.' : 'Назначение добавлено. ЭМК снова открыта только для просмотра.', severity: 'success' }); },
+    onSuccess: async () => { await refreshRecord(); setPrescription(undefined); setFeedback({ message: prescription ? 'Назначение обновлено.' : 'Назначение добавлено.', severity: 'success' }); },
     onError: handleMutationError,
   });
   const removeItem = useMutation({
     mutationFn: async (item: Removal) => {
-      if (item.kind === 'diagnosis') await medicalRecordsApi.removeDiagnosis(id, item.id, { workerId: worker!.id });
-      else await medicalRecordsApi.removePrescription(id, item.id, { workerId: worker!.id });
+      if (item.kind === 'diagnosis') await medicalRecordsApi.removeDiagnosis(id, item.id);
+      else await medicalRecordsApi.removePrescription(id, item.id);
     },
-    onSuccess: async () => { const removed = removal; await refreshRecord(); setRemoval(null); lockEditing(); setFeedback({ message: removed?.kind === 'diagnosis' ? 'Диагноз удалён. ЭМК снова открыта только для просмотра.' : 'Назначение отменено. ЭМК снова открыта только для просмотра.', severity: 'success' }); },
+    onSuccess: async () => { const removed = removal; await refreshRecord(); setRemoval(null); setFeedback({ message: removed?.kind === 'diagnosis' ? 'Диагноз удалён.' : 'Назначение отменено.', severity: 'success' }); },
+    onError: handleMutationError,
+  });
+  const unlock = useMutation({
+    mutationFn: () => medicalRecordsApi.unlock(id),
+    onSuccess: async () => { await refreshRecord(); setFeedback({ message: 'ЭМК разблокирована для редактирования.', severity: 'success' }); },
     onError: handleMutationError,
   });
 
@@ -192,7 +189,7 @@ export function MedicalRecordPage() {
   const availableDiagnoses = diagnosesQuery.data?.filter((item) => !state.diagnoses.some((active) => active.diagnosisId === item.id)) ?? [];
 
   return <Stack gap={3}>
-    <Button component={Link} to={`/patients/${state.patientId}`} sx={{ alignSelf: 'flex-start' }}>← К пациенту</Button>
+    <Button component={Link} to={`/app/patients/${state.patientId}`} sx={{ alignSelf: 'flex-start' }}>← К пациенту</Button>
     <Typography variant="h4" component="h1">Электронная медицинская карта</Typography>
     <Card><CardContent><Typography variant="overline" color="text.secondary">Пациент</Typography>
       {patientQuery.isPending ? <LoadingState /> : patientQuery.data ? <Stack gap={0.5}>
@@ -205,14 +202,14 @@ export function MedicalRecordPage() {
       <Tab label="Текущее состояние" /><Tab label="История" />
     </Tabs>
     {tab === 0 && <Stack gap={3}>
-      {!historicalTimestamp && (worker ? <Alert severity="success" action={<Button color="inherit" onClick={() => { setWorker(null); setWorkerId(''); }}>Завершить редактирование</Button>}>
-        Редактирует: {worker.lastName} {worker.firstName}, {worker.position}
-      </Alert> : <Alert severity="info" action={<Button color="inherit" onClick={() => { setWorkerId(''); setWorkerDialog(true); }}>Начать редактирование</Button>}>ЭМК открыта только для просмотра.</Alert>)}
+      {!historicalTimestamp && (state.isEditingLocked
+        ? <Alert severity="info" action={canUnlock ? <Button color="inherit" onClick={() => unlock.mutate()} disabled={unlock.isPending}>Разблокировать</Button> : undefined}>ЭМК заблокирована для редактирования.{canModify && !canUnlock ? ' Разблокировать её может только врач.' : ''}</Alert>
+        : <Alert severity="success">ЭМК разблокирована.{canModify ? ' Вы можете вносить изменения.' : ' Ваша роль допускает только просмотр.'}</Alert>)}
       {historicalTimestamp ? <Paper sx={{ p: 3 }}><Stack gap={2}>
         <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h5">Состояние на {new Date(historicalTimestamp).toLocaleString('ru-RU')}</Typography><Button onClick={() => setHistoricalTimestamp(null)}>Вернуться к текущему состоянию</Button></Stack>
-        {historicalQuery.isPending ? <LoadingState /> : historicalQuery.isError ? <ErrorState message={getErrorMessage(historicalQuery.error, 'medical-record')} /> : <RecordStateView state={historicalQuery.data} worker={null} />}
+        {historicalQuery.isPending ? <LoadingState /> : historicalQuery.isError ? <ErrorState message={getErrorMessage(historicalQuery.error, 'medical-record')} /> : <RecordStateView state={historicalQuery.data} editable={false} />}
       </Stack></Paper> : <>
-        <RecordStateView state={state} worker={worker} onAddDiagnosis={() => setDiagnosisDialog(true)} onEditPrescription={openPrescription} onRemove={setRemoval} />
+        <RecordStateView state={state} editable={canModify && !state.isEditingLocked} onAddDiagnosis={() => setDiagnosisDialog(true)} onEditPrescription={openPrescription} onRemove={setRemoval} />
         <Paper sx={{ p: 3 }}><Stack gap={2}><Typography variant="h5">Состояние ЭМК на дату и время</Typography><Stack direction={{ xs: 'column', sm: 'row' }} gap={2} alignItems={{ sm: 'flex-start' }}>
           <TextField label="Дата" type="date" value={historyDate} onChange={(event) => setHistoryDate(event.target.value)} InputLabelProps={{ shrink: true }} />
           <TextField label="Время" type="time" value={historyTime} onChange={(event) => setHistoryTime(event.target.value)} InputLabelProps={{ shrink: true }} />
@@ -221,12 +218,6 @@ export function MedicalRecordPage() {
       </>}
     </Stack>}
     {tab === 1 && (historyQuery.isPending ? <LoadingState /> : historyQuery.isError ? <ErrorState /> : <EventHistory events={historyQuery.data} />)}
-
-    <Dialog open={workerDialog} onClose={() => setWorkerDialog(false)} fullWidth maxWidth="sm"><DialogTitle>Редактирование ЭМК</DialogTitle><DialogContent sx={{ pt: 1 }}>
-      {workersQuery.isPending ? <LoadingState /> : workersQuery.isError ? <ErrorState message="Не удалось загрузить список медработников." /> : <FormControl fullWidth sx={{ mt: 1 }}><InputLabel id="worker-label">Медработник</InputLabel><Select labelId="worker-label" label="Медработник" value={workerId} onChange={(event) => setWorkerId(String(event.target.value))}>
-        {workersQuery.data?.map((item) => <MenuItem key={item.id} value={String(item.id)}>{item.lastName} {item.firstName} — {item.position}</MenuItem>)}
-      </Select></FormControl>}
-    </DialogContent><DialogActions><Button onClick={() => setWorkerDialog(false)}>Отмена</Button><Button variant="contained" disabled={!workerId} onClick={() => { const selected = workersQuery.data?.find((item) => item.id === Number(workerId)); if (selected) { setWorker(selected); setWorkerDialog(false); } }}>Начать редактирование</Button></DialogActions></Dialog>
 
     <Dialog open={diagnosisDialog} onClose={() => !addDiagnosis.isPending && setDiagnosisDialog(false)} fullWidth maxWidth="sm"><DialogTitle>Добавить диагноз</DialogTitle><DialogContent>
       {diagnosesQuery.isPending ? <LoadingState /> : diagnosesQuery.isError ? <ErrorState message="Не удалось загрузить справочник диагнозов." /> : <FormControl fullWidth sx={{ mt: 1 }}><InputLabel id="diagnosis-label">Диагноз</InputLabel><Select labelId="diagnosis-label" label="Диагноз" value={diagnosisId} onChange={(event) => setDiagnosisId(String(event.target.value))}>

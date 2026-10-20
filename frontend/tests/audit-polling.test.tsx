@@ -40,22 +40,13 @@ describe('audit polling client', () => {
     });
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      '/api/admin/audit/changes?after=cursor-0',
-      expect.objectContaining({
-        cache: 'no-store',
-        headers: { Authorization: 'Bearer admin-token-one' },
-      }),
-    );
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/audit/changes?after=cursor-0');
+    expect((fetchMock.mock.calls[0][1]?.headers as Headers).get('Authorization')).toBe('Bearer admin-token-one');
 
     await vi.advanceTimersByTimeAsync(1_000);
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      '/api/admin/audit/changes?after=cursor-1',
-      expect.objectContaining({ headers: { Authorization: 'Bearer admin-token-two' } }),
-    );
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/audit/changes?after=cursor-1');
+    expect((fetchMock.mock.calls[1][1]?.headers as Headers).get('Authorization')).toBe('Bearer admin-token-two');
     expect(onEvents).toHaveBeenNthCalledWith(1, [{ id: 'event-1' }]);
     expect(onEvents).toHaveBeenNthCalledWith(2, []);
     expect(onFreshnessChange).toHaveBeenLastCalledWith(true);

@@ -106,6 +106,7 @@ describe('server-side role authorization', () => {
       `/api/medical-records/${doctorRecordId}`,
       '/api/medical-workers',
       '/api/admin/accounts',
+      '/api/admin/diagnoses',
     ]) {
       const response = await request(app).get(path);
       expect(response.status).toBe(401);
@@ -240,14 +241,18 @@ describe('server-side role authorization', () => {
   });
 
   it('does not accept a medical-worker access token on administrator routes', async () => {
-    const response = await request(app)
-      .get('/api/medical-workers')
-      .set(bearer(token(MedicalWorkerRole.NURSE)));
-    expect(response.status).toBe(401);
+    for (const path of ['/api/medical-workers', '/api/admin/diagnoses']) {
+      const response = await request(app)
+        .get(path)
+        .set(bearer(token(MedicalWorkerRole.NURSE)));
+      expect(response.status).toBe(401);
+    }
 
-    const administrator = await request(app)
-      .get('/api/medical-workers')
-      .set(bearer(authorization.adminAccessToken!));
-    expect(administrator.status).toBe(200);
+    for (const path of ['/api/medical-workers', '/api/admin/diagnoses']) {
+      const administrator = await request(app)
+        .get(path)
+        .set(bearer(authorization.adminAccessToken!));
+      expect(administrator.status).toBe(200);
+    }
   });
 });
