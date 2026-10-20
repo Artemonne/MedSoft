@@ -13,6 +13,8 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "certs:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-certificates.ps1",
+    "certs:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/verify-certificates.ps1",
     "prisma:generate": "npm run prisma:generate --workspace backend",
     "prisma:validate": "npm run prisma:validate --workspace backend"
   },
