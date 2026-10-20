@@ -12,19 +12,22 @@ import {
 } from '../schemas/medical-record.js';
 import { medicalRecordService } from '../services/medical-record.js';
 import { UnauthorizedError } from '../lib/app-error.js';
+import type { UserAuthContext } from '../types/auth.js';
 
-function authenticatedWorkerId(request: Request): number {
+function userContext(request: Request): UserAuthContext {
   if (request.auth?.subjectType !== 'user') {
     throw new UnauthorizedError();
   }
-  return request.auth.medicalWorker.id;
+  return request.auth;
 }
 
 export const medicalRecordController = {
   async createForPatient(request: Request, response: Response) {
     const { patientId } = patientIdParamsSchema.parse(request.params);
     emptyBodySchema.parse(request.body ?? {});
-    response.status(201).json(await medicalRecordService.createForPatient(patientId));
+    response
+      .status(201)
+      .json(await medicalRecordService.createForPatient(patientId, userContext(request)));
   },
 
   async getForPatient(request: Request, response: Response) {
@@ -45,7 +48,7 @@ export const medicalRecordController = {
 
   async unlock(request: Request, response: Response) {
     const { id } = idParamsSchema.parse(request.params);
-    response.json(await medicalRecordService.unlock(id, authenticatedWorkerId(request)));
+    response.json(await medicalRecordService.unlock(id, userContext(request)));
   },
 
   async addDiagnosis(request: Request, response: Response) {
@@ -53,7 +56,7 @@ export const medicalRecordController = {
     const input = addDiagnosisSchema.parse(request.body);
     response
       .status(201)
-      .json(await medicalRecordService.addDiagnosis(id, input, authenticatedWorkerId(request)));
+      .json(await medicalRecordService.addDiagnosis(id, input, userContext(request)));
   },
 
   async removeDiagnosis(request: Request, response: Response) {
@@ -63,7 +66,7 @@ export const medicalRecordController = {
       await medicalRecordService.removeDiagnosis(
         id,
         diagnosisId,
-        authenticatedWorkerId(request),
+        userContext(request),
       ),
     );
   },
@@ -73,7 +76,7 @@ export const medicalRecordController = {
     const input = addPrescriptionSchema.parse(request.body);
     response
       .status(201)
-      .json(await medicalRecordService.addPrescription(id, input, authenticatedWorkerId(request)));
+      .json(await medicalRecordService.addPrescription(id, input, userContext(request)));
   },
 
   async removePrescription(request: Request, response: Response) {
@@ -83,7 +86,7 @@ export const medicalRecordController = {
       await medicalRecordService.removePrescription(
         id,
         prescriptionId,
-        authenticatedWorkerId(request),
+        userContext(request),
       ),
     );
   },
@@ -96,7 +99,7 @@ export const medicalRecordController = {
         id,
         prescriptionId,
         input,
-        authenticatedWorkerId(request),
+        userContext(request),
       ),
     );
   },

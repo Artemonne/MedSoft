@@ -7,10 +7,12 @@ import type {
   AddPrescriptionInput,
   EditPrescriptionInput,
 } from '../schemas/medical-record.js';
+import type { UserAuthContext } from '../types/auth.js';
 import {
   rebuildMedicalRecord,
   type MedicalRecordState,
 } from './medical-record-replay.js';
+import { auditService, type AuditEventType } from './audit.js';
 
 type StreamOperation<T> = (
   transaction: Prisma.TransactionClient,
@@ -42,14 +44,15 @@ async function lockWorker(
 
 async function modifyStream<T>(
   medicalRecordId: number,
-  workerId: number,
+  actor: UserAuthContext,
+  audit: { eventType: AuditEventType; message: string },
   operation: StreamOperation<T>,
 ): Promise<T> {
   return prisma.$transaction(async (transaction) => {
     // This serializes writers that use this service; the unique version constraint
     // remains the database backstop for writes that do not follow this lock protocol.
     await transaction.$queryRaw`SELECT pg_advisory_xact_lock(${medicalRecordId})::text`;
-    const worker = await lockWorker(transaction, workerId);
+    const worker = await lockWorker(transaction, actor.medicalWorker.id);
     if (
       worker.role !== MedicalWorkerRole.DOCTOR &&
       worker.role !== MedicalWorkerRole.NURSE
@@ -75,7 +78,14 @@ async function modifyStream<T>(
 
     const state = rebuildMedicalRecord(events);
     const nextVersion = (events.at(-1)?.version ?? 0) + 1;
-    return operation(transaction, state, nextVersion);
+    const result = await operation(transaction, state, nextVersion);
+    await auditService.record(transaction, {
+      eventType: audit.eventType,
+      actor: { type: 'user', accountId: actor.accountId },
+      message: audit.message,
+      metadata: { medicalRecordId, firstVersion: nextVersion },
+    });
+    return result;
   });
 }
 
@@ -109,28 +119,37 @@ async function reconstructRecord(id: number, at?: Date) {
 }
 
 export const medicalRecordService = {
-  async createForPatient(patientId: number) {
-    const patient = await prisma.patient.findUnique({
-      where: { id: patientId },
-      select: { id: true, medicalRecord: { select: { id: true } } },
-    });
+  async createForPatient(patientId: number, actor: UserAuthContext) {
+    return prisma.$transaction(async (transaction) => {
+      const patient = await transaction.patient.findUnique({
+        where: { id: patientId },
+        select: { id: true, medicalRecord: { select: { id: true } } },
+      });
 
-    if (!patient) {
-      throw new NotFoundError('Patient');
-    }
+      if (!patient) {
+        throw new NotFoundError('Patient');
+      }
 
-    if (patient.medicalRecord) {
-      throw new ConflictError('Patient already has a medical record.');
-    }
-
-    try {
-      return await prisma.medicalRecord.create({ data: { patientId } });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (patient.medicalRecord) {
         throw new ConflictError('Patient already has a medical record.');
       }
-      throw error;
-    }
+
+      try {
+        const medicalRecord = await transaction.medicalRecord.create({ data: { patientId } });
+        await auditService.record(transaction, {
+          eventType: 'MEDICAL_RECORD_CREATED',
+          actor: { type: 'user', accountId: actor.accountId },
+          message: 'Medical record created.',
+          metadata: { medicalRecordId: medicalRecord.id, patientId },
+        });
+        return medicalRecord;
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw new ConflictError('Patient already has a medical record.');
+        }
+        throw error;
+      }
+    });
   },
 
   async getForPatient(patientId: number) {
@@ -154,9 +173,9 @@ export const medicalRecordService = {
     return reconstructRecord(id, at);
   },
 
-  async unlock(id: number, workerId: number) {
+  async unlock(id: number, actor: UserAuthContext) {
     return prisma.$transaction(async (transaction) => {
-      const worker = await lockWorker(transaction, workerId);
+      const worker = await lockWorker(transaction, actor.medicalWorker.id);
       if (worker.role !== MedicalWorkerRole.DOCTOR) {
         throw new ForbiddenError('Insufficient permissions.');
       }
@@ -170,6 +189,12 @@ export const medicalRecordService = {
           throw new NotFoundError('Medical record');
         }
       }
+      await auditService.record(transaction, {
+        eventType: 'MEDICAL_RECORD_UNLOCKED',
+        actor: { type: 'user', accountId: actor.accountId },
+        message: 'Medical record unlocked for editing.',
+        metadata: { medicalRecordId: id },
+      });
       return transaction.medicalRecord.findUniqueOrThrow({ where: { id } });
     });
   },
@@ -197,8 +222,11 @@ export const medicalRecordService = {
     });
   },
 
-  addDiagnosis(medicalRecordId: number, input: AddDiagnosisInput, workerId: number) {
-    return modifyStream(medicalRecordId, workerId, async (transaction, state, version) => {
+  addDiagnosis(medicalRecordId: number, input: AddDiagnosisInput, actor: UserAuthContext) {
+    return modifyStream(medicalRecordId, actor, {
+      eventType: 'MEDICAL_RECORD_DIAGNOSIS_ADDED',
+      message: 'Diagnosis added to medical record.',
+    }, async (transaction, state, version) => {
       if (state.diagnoses.some((item) => item.diagnosisId === input.diagnosisId)) {
         throw new ConflictError('Diagnosis is already active in this medical record.');
       }
@@ -220,7 +248,7 @@ export const medicalRecordService = {
       await transaction.medicalRecordEvent.create({
         data: {
           medicalRecordId,
-          workerId,
+          workerId: actor.medicalWorker.id,
           version,
           type: MedicalRecordEventType.DIAGNOSIS_ADDED,
           payload: snapshot,
@@ -231,8 +259,11 @@ export const medicalRecordService = {
     });
   },
 
-  removeDiagnosis(medicalRecordId: number, diagnosisId: number, workerId: number) {
-    return modifyStream(medicalRecordId, workerId, async (transaction, state, version) => {
+  removeDiagnosis(medicalRecordId: number, diagnosisId: number, actor: UserAuthContext) {
+    return modifyStream(medicalRecordId, actor, {
+      eventType: 'MEDICAL_RECORD_DIAGNOSIS_REMOVED',
+      message: 'Diagnosis removed from medical record.',
+    }, async (transaction, state, version) => {
       const diagnosis = state.diagnoses.find((item) => item.diagnosisId === diagnosisId);
 
       if (!diagnosis) {
@@ -242,7 +273,7 @@ export const medicalRecordService = {
       await transaction.medicalRecordEvent.create({
         data: {
           medicalRecordId,
-          workerId,
+          workerId: actor.medicalWorker.id,
           version,
           type: MedicalRecordEventType.DIAGNOSIS_REMOVED,
           payload: diagnosis,
@@ -253,13 +284,16 @@ export const medicalRecordService = {
     });
   },
 
-  addPrescription(medicalRecordId: number, input: AddPrescriptionInput, workerId: number) {
-    return modifyStream(medicalRecordId, workerId, async (transaction, _state, version) => {
+  addPrescription(medicalRecordId: number, input: AddPrescriptionInput, actor: UserAuthContext) {
+    return modifyStream(medicalRecordId, actor, {
+      eventType: 'MEDICAL_RECORD_PRESCRIPTION_ADDED',
+      message: 'Prescription added to medical record.',
+    }, async (transaction, _state, version) => {
       const prescription = { prescriptionId: randomUUID(), text: input.text };
       await transaction.medicalRecordEvent.create({
         data: {
           medicalRecordId,
-          workerId,
+          workerId: actor.medicalWorker.id,
           version,
           type: MedicalRecordEventType.PRESCRIPTION_ADDED,
           payload: prescription,
@@ -270,8 +304,11 @@ export const medicalRecordService = {
     });
   },
 
-  removePrescription(medicalRecordId: number, prescriptionId: string, workerId: number) {
-    return modifyStream(medicalRecordId, workerId, async (transaction, state, version) => {
+  removePrescription(medicalRecordId: number, prescriptionId: string, actor: UserAuthContext) {
+    return modifyStream(medicalRecordId, actor, {
+      eventType: 'MEDICAL_RECORD_PRESCRIPTION_REMOVED',
+      message: 'Prescription removed from medical record.',
+    }, async (transaction, state, version) => {
       const prescription = state.prescriptions.find(
         (item) => item.prescriptionId === prescriptionId,
       );
@@ -283,7 +320,7 @@ export const medicalRecordService = {
       await transaction.medicalRecordEvent.create({
         data: {
           medicalRecordId,
-          workerId,
+          workerId: actor.medicalWorker.id,
           version,
           type: MedicalRecordEventType.PRESCRIPTION_REMOVED,
           payload: prescription,
@@ -298,11 +335,15 @@ export const medicalRecordService = {
     medicalRecordId: number,
     prescriptionId: string,
     input: EditPrescriptionInput,
-    workerId: number,
+    actor: UserAuthContext,
   ) {
     return modifyStream(
       medicalRecordId,
-      workerId,
+      actor,
+      {
+        eventType: 'MEDICAL_RECORD_PRESCRIPTION_EDITED',
+        message: 'Prescription edited in medical record.',
+      },
       async (transaction, state, version) => {
         const previousPrescription = state.prescriptions.find(
           (item) => item.prescriptionId === prescriptionId,
@@ -317,7 +358,7 @@ export const medicalRecordService = {
         await transaction.medicalRecordEvent.create({
           data: {
             medicalRecordId,
-            workerId,
+            workerId: actor.medicalWorker.id,
             version,
             type: MedicalRecordEventType.PRESCRIPTION_REMOVED,
             payload: previousPrescription,
@@ -326,7 +367,7 @@ export const medicalRecordService = {
         await transaction.medicalRecordEvent.create({
           data: {
             medicalRecordId,
-            workerId,
+            workerId: actor.medicalWorker.id,
             version: version + 1,
             type: MedicalRecordEventType.PRESCRIPTION_ADDED,
             payload: prescription,

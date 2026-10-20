@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma.js';
 import { hashRefreshToken, issueTokenPair, verifyToken } from '../lib/jwt.js';
 import type { LoginInput } from '../schemas/auth.js';
 import type { UserAuthContext } from '../types/auth.js';
+import { auditService } from './audit.js';
 
 const prismaRoleToApi = {
   [MedicalWorkerRole.DOCTOR]: 'doctor',
@@ -86,8 +87,17 @@ async function revokeFamily(
   });
 }
 
+function recordFailedLogin(requestId: string) {
+  return auditService.recordStandalone({
+    eventType: 'LOGIN_FAILED',
+    actor: { type: 'anonymous', requestId },
+    message: 'User login failed.',
+    metadata: { authenticationKind: 'user' },
+  });
+}
+
 export const authService = {
-  async login(input: LoginInput) {
+  async login(input: LoginInput, requestId: string) {
     const account = await prisma.account.findUnique({
       where: { username: input.username },
       omit: { passwordHash: false },
@@ -96,11 +106,13 @@ export const authService = {
 
     if (!account) {
       await hashPassword(input.password);
+      await recordFailedLogin(requestId);
       throw new UnauthorizedError('Invalid credentials.');
     }
 
     const passwordMatches = await verifyPassword(input.password, account.passwordHash);
     if (!passwordMatches || !isUsableAccount(account)) {
+      await recordFailedLogin(requestId);
       throw new UnauthorizedError('Invalid credentials.');
     }
 
@@ -114,34 +126,45 @@ export const authService = {
       issuedAt,
     });
 
-    const lockedAccount = await prisma.$transaction(async (transaction) => {
-      if (!(await lockAccount(transaction, account.id))) {
-        throw new UnauthorizedError('Invalid credentials.');
-      }
-      const current = await transaction.account.findUnique({
-        where: { id: account.id },
-        omit: { passwordHash: false },
-        include: { medicalWorker: true },
+    let lockedAccount;
+    try {
+      lockedAccount = await prisma.$transaction(async (transaction) => {
+        if (!(await lockAccount(transaction, account.id))) {
+          throw new UnauthorizedError('Invalid credentials.');
+        }
+        const current = await transaction.account.findUnique({
+          where: { id: account.id },
+          omit: { passwordHash: false },
+          include: { medicalWorker: true },
+        });
+        if (!isUsableAccount(current) || current.passwordHash !== account.passwordHash) {
+          throw new UnauthorizedError('Invalid credentials.');
+        }
+        await transaction.refreshSession.create({
+          data: {
+            id: sessionId,
+            subjectType: RefreshSessionSubjectType.USER,
+            accountId: current.id,
+            tokenHash: hashRefreshToken(tokens.refreshToken),
+            familyId,
+            issuedAt,
+            expiresAt: tokens.refreshTokenExpiresAt,
+          },
+        });
+        await auditService.record(transaction, {
+          eventType: 'USER_LOGIN_SUCCEEDED',
+          actor: { type: 'user', accountId: current.id },
+          message: 'User login succeeded.',
+          metadata: { medicalWorkerId: current.medicalWorker.id },
+        });
+        return current;
       });
-      if (
-        !isUsableAccount(current) ||
-        current.passwordHash !== account.passwordHash
-      ) {
-        throw new UnauthorizedError('Invalid credentials.');
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        await recordFailedLogin(requestId);
       }
-      await transaction.refreshSession.create({
-        data: {
-          id: sessionId,
-          subjectType: RefreshSessionSubjectType.USER,
-          accountId: current.id,
-          tokenHash: hashRefreshToken(tokens.refreshToken),
-          familyId,
-          issuedAt,
-          expiresAt: tokens.refreshTokenExpiresAt,
-        },
-      });
-      return current;
-    });
+      throw error;
+    }
 
     return {
       accessToken: tokens.accessToken,

@@ -14,6 +14,7 @@ import { prisma } from '../lib/prisma.js';
 import { createTotpSetup, verifyTotp } from '../lib/totp.js';
 import type { AdminBootstrapStartInput, AdminLoginInput } from '../schemas/admin-auth.js';
 import type { AdminAuthContext } from '../types/auth.js';
+import { auditService } from './audit.js';
 
 const ADMINISTRATOR_ID = 1;
 const ADMINISTRATOR_SUBJECT = 'system-administrator:1';
@@ -51,16 +52,24 @@ async function issueAdministratorSession() {
     issuedAt,
   });
 
-  await prisma.refreshSession.create({
-    data: {
-      id: sessionId,
-      subjectType: RefreshSessionSubjectType.ADMIN,
-      systemAdministratorId: ADMINISTRATOR_ID,
-      tokenHash: hashRefreshToken(tokens.refreshToken),
-      familyId: randomUUID(),
-      issuedAt,
-      expiresAt: tokens.refreshTokenExpiresAt,
-    },
+  await prisma.$transaction(async (transaction) => {
+    await transaction.refreshSession.create({
+      data: {
+        id: sessionId,
+        subjectType: RefreshSessionSubjectType.ADMIN,
+        systemAdministratorId: ADMINISTRATOR_ID,
+        tokenHash: hashRefreshToken(tokens.refreshToken),
+        familyId: randomUUID(),
+        issuedAt,
+        expiresAt: tokens.refreshTokenExpiresAt,
+      },
+    });
+    await auditService.record(transaction, {
+      eventType: 'ADMIN_LOGIN_SUCCEEDED',
+      actor: { type: 'admin', administratorId: ADMINISTRATOR_ID },
+      message: 'Administrator login succeeded.',
+      metadata: { authenticationKind: 'administrator' },
+    });
   });
 
   return tokens;
@@ -170,8 +179,18 @@ export const adminAuthService = {
     return publicAdministrator(activeAdministrator);
   },
 
-  async login(input: AdminLoginInput) {
-    loginLimiter.assertAllowed();
+  async login(input: AdminLoginInput, requestId: string) {
+    try {
+      loginLimiter.assertAllowed();
+    } catch (error) {
+      await auditService.recordStandalone({
+        eventType: 'LOGIN_FAILED',
+        actor: { type: 'anonymous', requestId },
+        message: 'Administrator login failed.',
+        metadata: { authenticationKind: 'administrator', reason: 'rate-limited' },
+      });
+      throw error;
+    }
     const administrator = await prisma.systemAdministrator.findUnique({
       where: { id: ADMINISTRATOR_ID },
       omit: { passwordHash: false, totpSecret: false },
@@ -185,6 +204,12 @@ export const adminAuthService = {
     ) {
       await hashPassword(input.password);
       loginLimiter.recordFailure();
+      await auditService.recordStandalone({
+        eventType: 'LOGIN_FAILED',
+        actor: { type: 'anonymous', requestId },
+        message: 'Administrator login failed.',
+        metadata: { authenticationKind: 'administrator' },
+      });
       throw new UnauthorizedError('Invalid administrator credentials.');
     }
 
@@ -192,6 +217,12 @@ export const adminAuthService = {
     const totpMatches = verifyTotp(administrator.totpSecret, input.totpCode);
     if (!passwordMatches || !totpMatches) {
       loginLimiter.recordFailure();
+      await auditService.recordStandalone({
+        eventType: 'LOGIN_FAILED',
+        actor: { type: 'anonymous', requestId },
+        message: 'Administrator login failed.',
+        metadata: { authenticationKind: 'administrator' },
+      });
       throw new UnauthorizedError('Invalid administrator credentials.');
     }
 

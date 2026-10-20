@@ -1,9 +1,10 @@
-import { MedicalWorkerRole, type MedicalWorker } from '@prisma/client';
+import { MedicalWorkerRole, Prisma, type MedicalWorker } from '@prisma/client';
 import { lockAccount, revokeActiveAccountSessions } from '../lib/account-sessions.js';
 import { NotFoundError } from '../lib/app-error.js';
 import { prisma } from '../lib/prisma.js';
 import type { MedicalWorkerInput } from '../schemas/medical-worker.js';
 import { recordAccountManagementChange } from './account-management-audit.js';
+import { auditService } from './audit.js';
 
 const apiRoleToPrisma = {
   doctor: MedicalWorkerRole.DOCTOR,
@@ -49,24 +50,74 @@ export const medicalWorkerService = {
     return toApi(worker);
   },
 
-  async create(data: MedicalWorkerInput) {
-    return toApi(await prisma.medicalWorker.create({ data: toPrismaData(data) }));
-  },
-
-  async update(id: number, data: MedicalWorkerInput) {
-    const result = await prisma.medicalWorker.updateMany({
-      where: { id, isDeleted: false },
-      data: toPrismaData(data),
+  async create(data: MedicalWorkerInput, administratorId: 1) {
+    return prisma.$transaction(async (transaction) => {
+      const worker = await transaction.medicalWorker.create({ data: toPrismaData(data) });
+      await auditService.record(transaction, {
+        eventType: 'MEDICAL_WORKER_CREATED',
+        actor: { type: 'admin', administratorId },
+        message: 'Medical worker created.',
+        metadata: { medicalWorkerId: worker.id },
+      });
+      return toApi(worker);
     });
-
-    if (result.count === 0) {
-      throw new NotFoundError('Medical worker');
-    }
-
-    return toApi(await prisma.medicalWorker.findUniqueOrThrow({ where: { id } }));
   },
 
-  async softDelete(id: number) {
+  async update(id: number, data: MedicalWorkerInput, administratorId: 1) {
+    return prisma.$transaction(async (transaction) => {
+      const rows = await transaction.$queryRaw<Array<{ id: number }>>(Prisma.sql`
+        SELECT "id"
+        FROM "MedicalWorker"
+        WHERE "id" = ${id} AND "isDeleted" = false
+        FOR UPDATE
+      `);
+      if (rows.length !== 1) {
+        throw new NotFoundError('Medical worker');
+      }
+      const existing = await transaction.medicalWorker.findUniqueOrThrow({
+        where: { id },
+        include: { account: { select: { id: true } } },
+      });
+      const roleChanged = Boolean(data.role && apiRoleToPrisma[data.role] !== existing.role);
+      const worker = await transaction.medicalWorker.update({
+        where: { id },
+        data: toPrismaData(data),
+      });
+
+      if (roleChanged && existing.account) {
+        const occurredAt = new Date();
+        await lockAccount(transaction, existing.account.id);
+        await transaction.account.update({
+          where: { id: existing.account.id },
+          data: { updatedAt: occurredAt },
+        });
+        const revokedRefreshTokens = await revokeActiveAccountSessions(
+          transaction,
+          existing.account.id,
+          'role-changed',
+          occurredAt,
+        );
+        await recordAccountManagementChange(transaction, {
+          action: 'role-changed',
+          actor: { type: 'admin', administratorId },
+          accountId: existing.account.id,
+          medicalWorkerId: id,
+          revokedRefreshTokens,
+          occurredAt,
+        });
+      }
+
+      await auditService.record(transaction, {
+        eventType: 'MEDICAL_WORKER_UPDATED',
+        actor: { type: 'admin', administratorId },
+        message: 'Medical worker updated.',
+        metadata: { medicalWorkerId: id },
+      });
+      return toApi(worker);
+    });
+  },
+
+  async softDelete(id: number, administratorId: 1) {
     const occurredAt = new Date();
     await prisma.$transaction(async (transaction) => {
       const result = await transaction.medicalWorker.updateMany({
@@ -82,10 +133,19 @@ export const medicalWorkerService = {
         where: { medicalWorkerId: id },
         select: { id: true },
       });
+      if (account) {
+        await lockAccount(transaction, account.id);
+      }
+
+      await auditService.record(transaction, {
+        eventType: 'MEDICAL_WORKER_DELETED',
+        actor: { type: 'admin', administratorId },
+        message: 'Medical worker logically deleted.',
+        metadata: { medicalWorkerId: id },
+      });
       if (!account) {
         return;
       }
-      await lockAccount(transaction, account.id);
       await transaction.account.update({
         where: { id: account.id },
         data: { isActive: false },

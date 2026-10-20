@@ -39,7 +39,10 @@ export const adminAuthController = {
   },
 
   async login(request: Request, response: Response) {
-    const result = await adminAuthService.login(adminLoginSchema.parse(request.body));
+    const result = await adminAuthService.login(
+      adminLoginSchema.parse(request.body),
+      request.requestId,
+    );
     setAdminRefreshCookie(response, result.refreshToken);
     response.json({
       accessToken: result.accessToken,

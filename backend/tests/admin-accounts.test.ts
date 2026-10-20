@@ -122,8 +122,15 @@ describe('administrator medical-worker account management', () => {
         ],
       },
     });
+    await prisma.auditEvent.deleteMany({
+      where: {
+        OR: [
+          { accountId: { in: accounts.map((account) => account.id) } },
+          { systemAdministratorId: 1 },
+        ],
+      },
+    });
     await prisma.account.deleteMany({ where: { id: { in: accounts.map((account) => account.id) } } });
-    await prisma.auditEvent.deleteMany({ where: { systemAdministratorId: 1 } });
     await prisma.systemAdministrator.deleteMany({ where: { id: 1 } });
     await prisma.medicalWorker.deleteMany({ where: { id: { in: workerIds } } });
     await prisma.$disconnect();

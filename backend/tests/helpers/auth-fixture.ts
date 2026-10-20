@@ -11,6 +11,7 @@ import { installTestJwtKeys } from './jwt-keys.js';
 export interface TestUserIdentity {
   accountId: string;
   workerId: number;
+  username: string;
   accessToken: string;
   refreshToken: string;
   sessionId: string;
@@ -55,6 +56,7 @@ async function createUserIdentity(role: MedicalWorkerRole): Promise<TestUserIden
   return {
     accountId: account.id,
     workerId: worker.id,
+    username: account.username,
     accessToken: tokens.accessToken,
     refreshToken: tokens.refreshToken,
     sessionId,

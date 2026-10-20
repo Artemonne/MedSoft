@@ -85,15 +85,17 @@ model SystemAdministrator {
 model AuditEvent {
   id                    String               @id @default(uuid()) @db.Uuid
   occurredAt            DateTime             @default(now())
+  eventType              String               @default("LEGACY") @db.VarChar(64)
   actorType             AuditActorType
   actorIdentifier       String               @db.VarChar(128)
   message               String
+  metadata               Json?
   accountId             String?              @db.Uuid
   systemAdministratorId Int?
   account               Account?             @relation(fields: [accountId], references: [id], onDelete: Restrict)
   systemAdministrator   SystemAdministrator? @relation(fields: [systemAdministratorId], references: [id], onDelete: Restrict)
 
-  @@index([occurredAt])
+  @@index([occurredAt, id])
   @@index([actorType, actorIdentifier])
   @@index([accountId])
   @@index([systemAdministratorId])

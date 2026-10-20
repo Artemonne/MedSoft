@@ -19,7 +19,7 @@ function tokenResponse(result: Awaited<ReturnType<typeof authService.login>>) {
 export const authController = {
   async login(request: Request, response: Response) {
     const input = loginSchema.parse(request.body);
-    const result = await authService.login(input);
+    const result = await authService.login(input, request.requestId);
     setRefreshCookie(response, result.refreshToken);
     response.json(tokenResponse(result));
   },

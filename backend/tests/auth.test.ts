@@ -84,6 +84,14 @@ describe('account authentication and JWT sessions', () => {
 
   afterAll(async () => {
     await prisma.refreshSession.deleteMany({ where: { accountId: { in: accountIds } } });
+    await prisma.auditEvent.deleteMany({
+      where: {
+        OR: [
+          { accountId: { in: accountIds } },
+          { eventType: 'LOGIN_FAILED' },
+        ],
+      },
+    });
     await prisma.account.deleteMany({ where: { id: { in: accountIds } } });
     await prisma.medicalWorker.deleteMany({ where: { id: { in: workerIds } } });
     await prisma.$disconnect();
