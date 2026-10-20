@@ -137,9 +137,13 @@ describe('administrator medical-worker account management', () => {
     jwtKeys.cleanup();
   });
 
-  it('generates exactly twelve characters from the permitted alphabet', () => {
+  it('generates twelve permitted characters including every required character class', () => {
     for (let index = 0; index < 100; index += 1) {
-      expect(generateMedicalWorkerPassword()).toMatch(/^[A-Za-z0-9]{12}$/);
+      const password = generateMedicalWorkerPassword();
+      expect(password).toMatch(/^[A-Za-z0-9]{12}$/);
+      expect(password).toMatch(/[A-Z]/);
+      expect(password).toMatch(/[a-z]/);
+      expect(password).toMatch(/[0-9]/);
     }
   });
 

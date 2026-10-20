@@ -8,6 +8,11 @@ import type { AccountRoleInput, CreateAccountInput } from '../schemas/admin-acco
 import { recordAccountManagementChange } from './account-management-audit.js';
 
 const PASSWORD_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const PASSWORD_CHARACTER_GROUPS = [
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  'abcdefghijklmnopqrstuvwxyz',
+  '0123456789',
+] as const;
 const GENERATED_PASSWORD_LENGTH = 12;
 
 const apiRoleToPrisma = {
@@ -49,11 +54,18 @@ function publicAccount(account: AccountWithWorker) {
 }
 
 export function generateMedicalWorkerPassword(): string {
-  let password = '';
-  for (let index = 0; index < GENERATED_PASSWORD_LENGTH; index += 1) {
-    password += PASSWORD_ALPHABET[randomInt(PASSWORD_ALPHABET.length)];
+  const characters = PASSWORD_CHARACTER_GROUPS.map(
+    (group) => group[randomInt(group.length)],
+  );
+  while (characters.length < GENERATED_PASSWORD_LENGTH) {
+    characters.push(PASSWORD_ALPHABET[randomInt(PASSWORD_ALPHABET.length)]);
   }
-  return password;
+
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
+  }
+  return characters.join('');
 }
 
 async function findLockedAccount(transaction: Prisma.TransactionClient, accountId: string) {

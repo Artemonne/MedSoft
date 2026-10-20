@@ -16,6 +16,6 @@ session and return `revokedRefreshTokens`, the number of rows actually revoked. 
 restores old sessions. Soft-deleting a medical worker performs the same deactivation and revocation
 inside the worker-deletion transaction.
 
-Account mutations call a transaction-aware audit integration hook. It currently records nothing and
-never logs generated passwords; stage 7 can persist the supplied non-secret metadata using the same
-database transaction.
+Account mutations call a transaction-aware audit integration hook. It persists only non-secret
+metadata in the same database transaction, including the number of refresh sessions actually
+revoked. Generated passwords are never sent to the audit service.
