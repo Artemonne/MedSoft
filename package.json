@@ -15,6 +15,7 @@
     "test": "npm run test --workspaces --if-present",
     "certs:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-certificates.ps1",
     "certs:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/verify-certificates.ps1",
+    "jwt:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-jwt-keys.ps1",
     "prisma:generate": "npm run prisma:generate --workspace backend",
     "prisma:validate": "npm run prisma:validate --workspace backend"
   },

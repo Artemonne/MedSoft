@@ -21,3 +21,15 @@ export class ConflictError extends AppError {
     super(409, 'CONFLICT', message);
   }
 }
+
+export class UnauthorizedError extends AppError {
+  constructor(message = 'Authentication is required.') {
+    super(401, 'UNAUTHORIZED', message);
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(message = 'The operation is not allowed.') {
+    super(403, 'FORBIDDEN', message);
+  }
+}
