@@ -1,8 +1,11 @@
+export type MedicalWorkerRole = 'doctor' | 'laboratory-technician' | 'nurse' | 'other';
+
 export interface MedicalWorker {
   id: number;
   firstName: string;
   lastName: string;
   position: string;
+  role: MedicalWorkerRole;
   isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
@@ -12,6 +15,7 @@ export interface MedicalWorkerInput {
   firstName: string;
   lastName: string;
   position: string;
+  role?: MedicalWorkerRole;
 }
 
 export interface Diagnosis {

@@ -20,15 +20,107 @@ enum MedicalRecordEventType {
   PRESCRIPTION_REMOVED
 }
 
+enum MedicalWorkerRole {
+  DOCTOR                @map("doctor")
+  LABORATORY_TECHNICIAN @map("laboratory-technician")
+  NURSE                 @map("nurse")
+  OTHER                 @map("other")
+}
+
+enum AuditActorType {
+  ADMIN
+  USER
+  ANONYMOUS
+  SYSTEM
+}
+
+enum AdministratorSetupState {
+  PASSWORD_SETUP_REQUIRED
+  TOTP_SETUP_REQUIRED
+  ACTIVE
+}
+
+enum RefreshSessionSubjectType {
+  ADMIN
+  USER
+}
+
 model MedicalWorker {
   id        Int                  @id @default(autoincrement())
   firstName String               @db.VarChar(24)
   lastName  String               @db.VarChar(24)
   position  String               @db.VarChar(24)
+  role      MedicalWorkerRole    @default(OTHER)
   isDeleted Boolean              @default(false)
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
+  account   Account?
   events    MedicalRecordEvent[]
+}
+
+model Account {
+  id              String           @id @default(uuid()) @db.Uuid
+  username        String           @unique @db.VarChar(16)
+  passwordHash    String
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  medicalWorkerId Int?             @unique
+  medicalWorker   MedicalWorker?   @relation(fields: [medicalWorkerId], references: [id], onDelete: SetNull)
+  auditEvents     AuditEvent[]
+  refreshSessions RefreshSession[]
+}
+
+model SystemAdministrator {
+  id              Int                     @id @default(1)
+  passwordHash    String?
+  totpSecret      String?
+  setupState      AdministratorSetupState @default(PASSWORD_SETUP_REQUIRED)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  auditEvents     AuditEvent[]
+  refreshSessions RefreshSession[]
+}
+
+model AuditEvent {
+  id                    String               @id @default(uuid()) @db.Uuid
+  occurredAt            DateTime             @default(now())
+  actorType             AuditActorType
+  actorIdentifier       String               @db.VarChar(128)
+  message               String
+  accountId             String?              @db.Uuid
+  systemAdministratorId Int?
+  account               Account?             @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  systemAdministrator   SystemAdministrator? @relation(fields: [systemAdministratorId], references: [id], onDelete: Restrict)
+
+  @@index([occurredAt])
+  @@index([actorType, actorIdentifier])
+  @@index([accountId])
+  @@index([systemAdministratorId])
+}
+
+model RefreshSession {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  subjectType           RefreshSessionSubjectType
+  accountId             String?                   @db.Uuid
+  systemAdministratorId Int?
+  tokenHash             String                    @unique
+  familyId              String                    @db.Uuid
+  issuedAt              DateTime                  @default(now())
+  expiresAt             DateTime
+  revokedAt             DateTime?
+  revocationReason      String?                   @db.VarChar(128)
+  replacedById          String?                   @unique @db.Uuid
+  account               Account?                  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  systemAdministrator   SystemAdministrator?      @relation(fields: [systemAdministratorId], references: [id], onDelete: Cascade)
+  replacedBy            RefreshSession?           @relation("RefreshSessionRotation", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces              RefreshSession?           @relation("RefreshSessionRotation")
+
+  @@index([accountId])
+  @@index([systemAdministratorId])
+  @@index([familyId])
+  @@index([revokedAt])
+  @@index([expiresAt])
 }
 
 model Diagnosis {

@@ -23,6 +23,7 @@ describe('medical worker CRUD', () => {
       firstName: 'Maria',
       lastName: 'Petrova',
       position: 'Doctor',
+      role: 'laboratory-technician',
     });
 
     expect(response.status).toBe(201);
@@ -30,6 +31,7 @@ describe('medical worker CRUD', () => {
       firstName: 'Maria',
       lastName: 'Petrova',
       position: 'Doctor',
+      role: 'laboratory-technician',
       isDeleted: false,
     });
 
@@ -64,14 +66,46 @@ describe('medical worker CRUD', () => {
       firstName: 'Elena',
       lastName: 'Sidorova',
       position: 'Surgeon',
+      role: 'laboratory-technician',
     });
   });
 
-  it('rejects a two-character field', async () => {
+  it('accepts one-character first and last names and defaults the role', async () => {
     const response = await request(app).post('/api/medical-workers').send({
-      firstName: 'Al',
+      firstName: 'A',
+      lastName: 'B',
+      position: 'Nurse',
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({ firstName: 'A', lastName: 'B', role: 'other' });
+    workerIds.push(response.body.id);
+  });
+
+  it('rejects an empty name without weakening the position constraint', async () => {
+    const response = await request(app).post('/api/medical-workers').send({
+      firstName: '',
       lastName: 'Petrova',
       position: 'Doctor',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+
+    const shortPositionResponse = await request(app).post('/api/medical-workers').send({
+      firstName: 'A',
+      lastName: 'B',
+      position: 'RN',
+    });
+    expect(shortPositionResponse.status).toBe(400);
+  });
+
+  it('rejects an unsupported API role', async () => {
+    const response = await request(app).post('/api/medical-workers').send({
+      firstName: 'Anna',
+      lastName: 'Petrova',
+      position: 'Doctor',
+      role: 'laboratory_technician',
     });
 
     expect(response.status).toBe(400);
