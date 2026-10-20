@@ -1,4 +1,5 @@
 import express from 'express';
+import { adminAccountsRouter } from './routes/admin-accounts.js';
 import { adminAuthRouter } from './routes/admin-auth.js';
 import { authRouter } from './routes/auth.js';
 import { diagnosesRouter } from './routes/diagnoses.js';
@@ -17,6 +18,7 @@ app.get('/api/health', (_request, response) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminAuthRouter);
+app.use('/api/admin/accounts', adminAccountsRouter);
 app.use('/api/medical-workers', medicalWorkersRouter);
 app.use('/api/diagnoses', diagnosesRouter);
 app.use('/api/patients', patientsRouter);

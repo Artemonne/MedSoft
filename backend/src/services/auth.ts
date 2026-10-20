@@ -1,6 +1,7 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { MedicalWorkerRole, RefreshSessionSubjectType, type Prisma } from '@prisma/client';
 import { UnauthorizedError } from '../lib/app-error.js';
+import { lockAccount } from '../lib/account-sessions.js';
 import { hashPassword, verifyPassword } from '../lib/password.js';
 import { prisma } from '../lib/prisma.js';
 import { hashRefreshToken, issueTokenPair, verifyToken } from '../lib/jwt.js';
@@ -113,23 +114,40 @@ export const authService = {
       issuedAt,
     });
 
-    await prisma.refreshSession.create({
-      data: {
-        id: sessionId,
-        subjectType: RefreshSessionSubjectType.USER,
-        accountId: account.id,
-        tokenHash: hashRefreshToken(tokens.refreshToken),
-        familyId,
-        issuedAt,
-        expiresAt: tokens.refreshTokenExpiresAt,
-      },
+    const lockedAccount = await prisma.$transaction(async (transaction) => {
+      if (!(await lockAccount(transaction, account.id))) {
+        throw new UnauthorizedError('Invalid credentials.');
+      }
+      const current = await transaction.account.findUnique({
+        where: { id: account.id },
+        omit: { passwordHash: false },
+        include: { medicalWorker: true },
+      });
+      if (
+        !isUsableAccount(current) ||
+        current.passwordHash !== account.passwordHash
+      ) {
+        throw new UnauthorizedError('Invalid credentials.');
+      }
+      await transaction.refreshSession.create({
+        data: {
+          id: sessionId,
+          subjectType: RefreshSessionSubjectType.USER,
+          accountId: current.id,
+          tokenHash: hashRefreshToken(tokens.refreshToken),
+          familyId,
+          issuedAt,
+          expiresAt: tokens.refreshTokenExpiresAt,
+        },
+      });
+      return current;
     });
 
     return {
       accessToken: tokens.accessToken,
       accessTokenExpiresIn: tokens.accessTokenTtlSeconds,
       refreshToken: tokens.refreshToken,
-      account: publicAccount(account),
+      account: publicAccount(lockedAccount),
     };
   },
 
@@ -146,6 +164,9 @@ export const authService = {
     const presentedHash = hashRefreshToken(refreshToken);
 
     const result = await prisma.$transaction(async (transaction) => {
+      if (!(await lockAccount(transaction, claims.subjectId))) {
+        return { status: 'invalid' as const };
+      }
       const session = await transaction.refreshSession.findUnique({
         where: { id: claims.sessionId },
         omit: { tokenHash: false },

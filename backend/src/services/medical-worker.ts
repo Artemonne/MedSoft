@@ -1,7 +1,9 @@
 import { MedicalWorkerRole, type MedicalWorker } from '@prisma/client';
+import { lockAccount, revokeActiveAccountSessions } from '../lib/account-sessions.js';
 import { NotFoundError } from '../lib/app-error.js';
 import { prisma } from '../lib/prisma.js';
 import type { MedicalWorkerInput } from '../schemas/medical-worker.js';
+import { recordAccountManagementChange } from './account-management-audit.js';
 
 const apiRoleToPrisma = {
   doctor: MedicalWorkerRole.DOCTOR,
@@ -65,13 +67,43 @@ export const medicalWorkerService = {
   },
 
   async softDelete(id: number) {
-    const result = await prisma.medicalWorker.updateMany({
-      where: { id, isDeleted: false },
-      data: { isDeleted: true },
-    });
+    const occurredAt = new Date();
+    await prisma.$transaction(async (transaction) => {
+      const result = await transaction.medicalWorker.updateMany({
+        where: { id, isDeleted: false },
+        data: { isDeleted: true },
+      });
 
-    if (result.count === 0) {
-      throw new NotFoundError('Medical worker');
-    }
+      if (result.count === 0) {
+        throw new NotFoundError('Medical worker');
+      }
+
+      const account = await transaction.account.findUnique({
+        where: { medicalWorkerId: id },
+        select: { id: true },
+      });
+      if (!account) {
+        return;
+      }
+      await lockAccount(transaction, account.id);
+      await transaction.account.update({
+        where: { id: account.id },
+        data: { isActive: false },
+      });
+      const revokedRefreshTokens = await revokeActiveAccountSessions(
+        transaction,
+        account.id,
+        'medical-worker-deleted',
+        occurredAt,
+      );
+      await recordAccountManagementChange(transaction, {
+        action: 'worker-deleted',
+        actor: { type: 'system' },
+        accountId: account.id,
+        medicalWorkerId: id,
+        revokedRefreshTokens,
+        occurredAt,
+      });
+    });
   },
 };
