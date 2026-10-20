@@ -5,7 +5,7 @@ import { hashPassword, verifyPassword } from '../lib/password.js';
 import { prisma } from '../lib/prisma.js';
 import { hashRefreshToken, issueTokenPair, verifyToken } from '../lib/jwt.js';
 import type { LoginInput } from '../schemas/auth.js';
-import type { AuthContext } from '../types/auth.js';
+import type { UserAuthContext } from '../types/auth.js';
 
 const prismaRoleToApi = {
   [MedicalWorkerRole.DOCTOR]: 'doctor',
@@ -54,7 +54,7 @@ function publicAccount(
 function authContext(
   account: AccountWithWorker & { medicalWorker: NonNullable<AccountWithWorker['medicalWorker']> },
   sessionId: string,
-): AuthContext {
+): UserAuthContext {
   return {
     subjectType: 'user',
     accountId: account.id,
@@ -106,7 +106,12 @@ export const authService = {
     const issuedAt = new Date();
     const sessionId = randomUUID();
     const familyId = randomUUID();
-    const tokens = await issueTokenPair({ accountId: account.id, sessionId, issuedAt });
+    const tokens = await issueTokenPair({
+      subjectId: account.id,
+      subjectType: 'user',
+      sessionId,
+      issuedAt,
+    });
 
     await prisma.refreshSession.create({
       data: {
@@ -129,11 +134,12 @@ export const authService = {
   },
 
   async refresh(refreshToken: string) {
-    const claims = await verifyToken(refreshToken, 'refresh');
+    const claims = await verifyToken(refreshToken, 'refresh', 'user');
     const replacementId = randomUUID();
     const issuedAt = new Date();
     const replacementTokens = await issueTokenPair({
-      accountId: claims.accountId,
+      subjectId: claims.subjectId,
+      subjectType: 'user',
       sessionId: replacementId,
       issuedAt,
     });
@@ -149,7 +155,7 @@ export const authService = {
       if (
         !session ||
         session.subjectType !== RefreshSessionSubjectType.USER ||
-        session.accountId !== claims.accountId ||
+        session.accountId !== claims.subjectId ||
         !hashesMatch(session.tokenHash, presentedHash)
       ) {
         return { status: 'invalid' as const };
@@ -219,7 +225,7 @@ export const authService = {
     }
 
     try {
-      const claims = await verifyToken(refreshToken, 'refresh');
+      const claims = await verifyToken(refreshToken, 'refresh', 'user');
       const tokenHash = hashRefreshToken(refreshToken);
       const session = await prisma.refreshSession.findUnique({
         where: { id: claims.sessionId },
@@ -227,7 +233,7 @@ export const authService = {
       });
 
       if (
-        session?.accountId === claims.accountId &&
+        session?.accountId === claims.subjectId &&
         session.subjectType === RefreshSessionSubjectType.USER &&
         hashesMatch(session.tokenHash, tokenHash)
       ) {
@@ -243,8 +249,8 @@ export const authService = {
     }
   },
 
-  async authenticateAccessToken(accessToken: string): Promise<AuthContext> {
-    const claims = await verifyToken(accessToken, 'access');
+  async authenticateAccessToken(accessToken: string): Promise<UserAuthContext> {
+    const claims = await verifyToken(accessToken, 'access', 'user');
     const session = await prisma.refreshSession.findUnique({
       where: { id: claims.sessionId },
       include: { account: { include: { medicalWorker: true } } },
@@ -253,7 +259,7 @@ export const authService = {
     if (
       !session ||
       session.subjectType !== RefreshSessionSubjectType.USER ||
-      session.accountId !== claims.accountId ||
+      session.accountId !== claims.subjectId ||
       session.revokedAt ||
       session.expiresAt <= new Date() ||
       !isUsableAccount(session.account)
@@ -264,7 +270,7 @@ export const authService = {
     return authContext(session.account, session.id);
   },
 
-  async currentAccount(context: AuthContext) {
+  async currentAccount(context: UserAuthContext) {
     const account = await prisma.account.findUnique({
       where: { id: context.accountId },
       include: { medicalWorker: true },

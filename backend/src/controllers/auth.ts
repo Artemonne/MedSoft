@@ -42,7 +42,7 @@ export const authController = {
   },
 
   async me(request: Request, response: Response) {
-    if (!request.auth) {
+    if (request.auth?.subjectType !== 'user') {
       throw new UnauthorizedError();
     }
     response.json(await authService.currentAccount(request.auth));

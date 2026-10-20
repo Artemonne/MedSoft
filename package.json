@@ -16,6 +16,7 @@
     "certs:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-certificates.ps1",
     "certs:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/verify-certificates.ps1",
     "jwt:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-jwt-keys.ps1",
+    "admin-bootstrap:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-admin-bootstrap-secret.ps1",
     "prisma:generate": "npm run prisma:generate --workspace backend",
     "prisma:validate": "npm run prisma:validate --workspace backend"
   },

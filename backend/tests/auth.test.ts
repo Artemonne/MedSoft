@@ -171,6 +171,7 @@ describe('account authentication and JWT sessions', () => {
     const now = Math.floor(Date.now() / 1000);
     const expiredToken = await new SignJWT({
       tokenType: 'access',
+      subjectType: 'user',
       sessionId: payload.sessionId,
     })
       .setProtectedHeader({ alg: 'EdDSA', typ: 'JWT' })
@@ -182,6 +183,7 @@ describe('account authentication and JWT sessions', () => {
       .sign(signingKey);
     const wrongIssuerToken = await new SignJWT({
       tokenType: 'access',
+      subjectType: 'user',
       sessionId: payload.sessionId,
     })
       .setProtectedHeader({ alg: 'EdDSA', typ: 'JWT' })
@@ -193,6 +195,7 @@ describe('account authentication and JWT sessions', () => {
       .sign(signingKey);
     const wrongAudienceToken = await new SignJWT({
       tokenType: 'access',
+      subjectType: 'user',
       sessionId: payload.sessionId,
     })
       .setProtectedHeader({ alg: 'EdDSA', typ: 'JWT' })
@@ -204,6 +207,7 @@ describe('account authentication and JWT sessions', () => {
       .sign(signingKey);
     const wrongAlgorithmToken = await new SignJWT({
       tokenType: 'access',
+      subjectType: 'user',
       sessionId: payload.sessionId,
     })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })

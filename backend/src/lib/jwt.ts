@@ -8,15 +8,18 @@ import {
 import { UnauthorizedError } from './app-error.js';
 
 export type TokenType = 'access' | 'refresh';
+export type TokenSubjectType = 'user' | 'admin';
 
 export interface VerifiedToken {
-  accountId: string;
+  subjectId: string;
+  subjectType: TokenSubjectType;
   sessionId: string;
   tokenType: TokenType;
 }
 
 interface TokenPairInput {
-  accountId: string;
+  subjectId: string;
+  subjectType: TokenSubjectType;
   sessionId: string;
   issuedAt: Date;
 }
@@ -28,11 +31,15 @@ async function signToken(
 ): Promise<string> {
   const configuration = getAuthConfiguration();
   const issuedAt = Math.floor(input.issuedAt.getTime() / 1000);
-  return new SignJWT({ tokenType, sessionId: input.sessionId })
+  return new SignJWT({
+    tokenType,
+    subjectType: input.subjectType,
+    sessionId: input.sessionId,
+  })
     .setProtectedHeader({ alg: 'EdDSA', typ: 'JWT' })
     .setIssuer(configuration.issuer)
     .setAudience(configuration.audience)
-    .setSubject(input.accountId)
+    .setSubject(input.subjectId)
     .setJti(randomUUID())
     .setIssuedAt(issuedAt)
     .setExpirationTime(issuedAt + ttlSeconds)
@@ -63,7 +70,11 @@ function isStringClaim(
   return typeof payload[name] === 'string' && payload[name].length > 0;
 }
 
-export async function verifyToken(token: string, expectedType: TokenType): Promise<VerifiedToken> {
+export async function verifyToken(
+  token: string,
+  expectedType: TokenType,
+  expectedSubjectType: TokenSubjectType,
+): Promise<VerifiedToken> {
   try {
     const configuration = getAuthConfiguration();
     const { payload } = await jwtVerify(token, await getJwtVerificationKey(), {
@@ -75,6 +86,7 @@ export async function verifyToken(token: string, expectedType: TokenType): Promi
 
     if (
       payload.tokenType !== expectedType ||
+      payload.subjectType !== expectedSubjectType ||
       !isStringClaim(payload, 'sub') ||
       !isStringClaim(payload, 'sessionId')
     ) {
@@ -82,7 +94,8 @@ export async function verifyToken(token: string, expectedType: TokenType): Promi
     }
 
     return {
-      accountId: payload.sub as string,
+      subjectId: payload.sub as string,
+      subjectType: expectedSubjectType,
       sessionId: payload.sessionId as string,
       tokenType: expectedType,
     };

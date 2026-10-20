@@ -1,6 +1,6 @@
 import type { MedicalWorkerRole } from '@prisma/client';
 
-export interface AuthContext {
+export interface UserAuthContext {
   subjectType: 'user';
   accountId: string;
   username: string;
@@ -10,3 +10,11 @@ export interface AuthContext {
     role: MedicalWorkerRole;
   };
 }
+
+export interface AdminAuthContext {
+  subjectType: 'admin';
+  administratorId: 1;
+  sessionId: string;
+}
+
+export type AuthContext = UserAuthContext | AdminAuthContext;
