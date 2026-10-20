@@ -36,6 +36,8 @@ describe('App routing and existing pages', () => {
     const workerView = renderApp('/app/patients', doctor);
     expect(screen.getByRole('link', { name: 'Пациенты' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Аккаунты' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Петрова Анна · doctor/)).toBeInTheDocument();
+    expect(screen.getByText('Врач')).toBeInTheDocument();
     workerView.unmount();
     renderApp('/admin/medical-workers', admin);
     expect(screen.getByRole('link', { name: 'Медработники' })).toBeInTheDocument();

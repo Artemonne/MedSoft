@@ -20,6 +20,14 @@ describe('medical record event sourcing API', () => {
   let viewerToken: string;
   let adminToken: string;
 
+  async function unlockRecord(id = recordId) {
+    const response = await request(app)
+      .post(`/api/medical-records/${id}/unlock`)
+      .set(bearer(doctorToken));
+    expect(response.status).toBe(200);
+    return response;
+  }
+
   beforeAll(async () => {
     authorization = await createAuthorizationFixture(
       [MedicalWorkerRole.DOCTOR, MedicalWorkerRole.OTHER],
@@ -131,6 +139,7 @@ describe('medical record event sourcing API', () => {
     expect(stateWithDiagnosis.body.diagnoses).toEqual([
       expect.objectContaining({ diagnosisId }),
     ]);
+    expect(stateWithDiagnosis.body.isEditingLocked).toBe(true);
 
     const duplicateResponse = await request(app)
       .post(`/api/medical-records/${recordId}/diagnoses`)
@@ -138,6 +147,7 @@ describe('medical record event sourcing API', () => {
       .send({ diagnosisId });
     expect(duplicateResponse.status).toBe(409);
 
+    await unlockRecord();
     const removeResponse = await request(app)
       .delete(`/api/medical-records/${recordId}/diagnoses/${diagnosisId}`)
       .set(bearer(doctorToken))
@@ -171,6 +181,7 @@ describe('medical record event sourcing API', () => {
   });
 
   it('adds a prescription to reconstructed state', async () => {
+    await unlockRecord();
     const response = await request(app)
       .post(`/api/medical-records/${recordId}/prescriptions`)
       .set(bearer(doctorToken))
@@ -186,6 +197,7 @@ describe('medical record event sourcing API', () => {
     expect(state.body.prescriptions).toEqual([
       { prescriptionId, text: 'Take one tablet daily' },
     ]);
+    expect(state.body.isEditingLocked).toBe(true);
   });
 
   it('edits a prescription with remove and add events in one transaction', async () => {
@@ -193,6 +205,7 @@ describe('medical record event sourcing API', () => {
       .get(`/api/medical-records/${recordId}/events`)
       .set(bearer(viewerToken));
 
+    await unlockRecord();
     const response = await request(app)
       .put(`/api/medical-records/${recordId}/prescriptions/${prescriptionId}`)
       .set(bearer(doctorToken))
@@ -220,6 +233,7 @@ describe('medical record event sourcing API', () => {
   });
 
   it('removes an active prescription and rejects another removal', async () => {
+    await unlockRecord();
     const removeResponse = await request(app)
       .delete(`/api/medical-records/${recordId}/prescriptions/${editedPrescriptionId}`)
       .set(bearer(doctorToken))
@@ -239,6 +253,8 @@ describe('medical record event sourcing API', () => {
   });
 
   it('serializes concurrent event version allocation', async () => {
+    await unlockRecord();
+    const before = await prisma.medicalRecordEvent.count({ where: { medicalRecordId: recordId } });
     const [first, second] = await Promise.all([
       request(app)
         .post(`/api/medical-records/${recordId}/prescriptions`)
@@ -250,12 +266,9 @@ describe('medical record event sourcing API', () => {
         .send({ text: 'Concurrent prescription two' }),
     ]);
 
-    expect(first.status).toBe(201);
-    expect(second.status).toBe(201);
-    expect([first.body.version, second.body.version].sort((a, b) => a - b)).toEqual([
-      Math.min(first.body.version, second.body.version),
-      Math.min(first.body.version, second.body.version) + 1,
-    ]);
+    expect([first.status, second.status].sort()).toEqual([201, 409]);
+    expect(await prisma.medicalRecordEvent.count({ where: { medicalRecordId: recordId } })).toBe(before + 1);
+    expect((await prisma.medicalRecord.findUniqueOrThrow({ where: { id: recordId } })).isEditingLocked).toBe(true);
   });
 
   it('returns ordered event versions and worker details', async () => {
@@ -289,18 +302,18 @@ describe('medical record event sourcing API', () => {
     const historicalRecordId = recordResponse.body.id;
     recordIds.push(historicalRecordId);
 
-    await request(app)
-      .post(`/api/medical-records/${historicalRecordId}/unlock`)
-      .set(bearer(doctorToken));
+    await unlockRecord(historicalRecordId);
 
     await request(app)
       .post(`/api/medical-records/${historicalRecordId}/diagnoses`)
       .set(bearer(doctorToken))
       .send({ diagnosisId });
+    await unlockRecord(historicalRecordId);
     const prescriptionResponse = await request(app)
       .post(`/api/medical-records/${historicalRecordId}/prescriptions`)
       .set(bearer(doctorToken))
       .send({ text: 'Historical prescription' });
+    await unlockRecord(historicalRecordId);
     await request(app)
       .delete(`/api/medical-records/${historicalRecordId}/diagnoses/${diagnosisId}`)
       .set(bearer(doctorToken))

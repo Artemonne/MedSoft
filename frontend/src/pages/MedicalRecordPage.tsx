@@ -96,7 +96,7 @@ function EventHistory({ events }: { events: MedicalRecordEvent[] }) {
 }
 
 export function MedicalRecordPage() {
-  const { identity } = useAuth();
+  const { identity, refreshIdentity } = useAuth();
   const role = identity?.subjectType === 'user' ? identity.medicalWorker.role : 'other';
   const canModify = role === 'doctor' || role === 'nurse';
   const canUnlock = role === 'doctor';
@@ -131,6 +131,15 @@ export function MedicalRecordPage() {
   };
   const handleMutationError = async (error: unknown) => {
     setFeedback({ message: getErrorMessage(error, 'medical-record'), severity: 'error' });
+    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+      setDiagnosisDialog(false);
+      setPrescription(undefined);
+      setRemoval(null);
+      if (error.status === 403) {
+        await Promise.allSettled([refreshIdentity(), refreshRecord()]);
+      }
+      return;
+    }
     if (error instanceof ApiError && error.status === 409) {
       await refreshRecord();
     }
@@ -138,7 +147,7 @@ export function MedicalRecordPage() {
 
   const addDiagnosis = useMutation({
     mutationFn: () => medicalRecordsApi.addDiagnosis(id, { diagnosisId: Number(diagnosisId) }),
-    onSuccess: async () => { await refreshRecord(); setDiagnosisDialog(false); setDiagnosisId(''); setFeedback({ message: 'Диагноз добавлен.', severity: 'success' }); },
+    onSuccess: async () => { await refreshRecord(); setDiagnosisDialog(false); setDiagnosisId(''); setFeedback({ message: 'Диагноз добавлен. ЭМК снова открыта только для просмотра.', severity: 'success' }); },
     onError: handleMutationError,
   });
   const savePrescription = useMutation({
@@ -146,7 +155,7 @@ export function MedicalRecordPage() {
       if (prescription) await medicalRecordsApi.editPrescription(id, prescription.prescriptionId, { text: prescriptionText.trim() });
       else await medicalRecordsApi.addPrescription(id, { text: prescriptionText.trim() });
     },
-    onSuccess: async () => { await refreshRecord(); setPrescription(undefined); setFeedback({ message: prescription ? 'Назначение обновлено.' : 'Назначение добавлено.', severity: 'success' }); },
+    onSuccess: async () => { await refreshRecord(); setPrescription(undefined); setFeedback({ message: prescription ? 'Назначение обновлено. ЭМК снова открыта только для просмотра.' : 'Назначение добавлено. ЭМК снова открыта только для просмотра.', severity: 'success' }); },
     onError: handleMutationError,
   });
   const removeItem = useMutation({
@@ -154,7 +163,7 @@ export function MedicalRecordPage() {
       if (item.kind === 'diagnosis') await medicalRecordsApi.removeDiagnosis(id, item.id);
       else await medicalRecordsApi.removePrescription(id, item.id);
     },
-    onSuccess: async () => { const removed = removal; await refreshRecord(); setRemoval(null); setFeedback({ message: removed?.kind === 'diagnosis' ? 'Диагноз удалён.' : 'Назначение отменено.', severity: 'success' }); },
+    onSuccess: async () => { const removed = removal; await refreshRecord(); setRemoval(null); setFeedback({ message: removed?.kind === 'diagnosis' ? 'Диагноз удалён. ЭМК снова открыта только для просмотра.' : 'Назначение отменено. ЭМК снова открыта только для просмотра.', severity: 'success' }); },
     onError: handleMutationError,
   });
   const unlock = useMutation({

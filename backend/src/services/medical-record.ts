@@ -79,11 +79,15 @@ async function modifyStream<T>(
     const state = rebuildMedicalRecord(events);
     const nextVersion = (events.at(-1)?.version ?? 0) + 1;
     const result = await operation(transaction, state, nextVersion);
+    await transaction.medicalRecord.update({
+      where: { id: medicalRecordId },
+      data: { isEditingLocked: true },
+    });
     await auditService.record(transaction, {
       eventType: audit.eventType,
       actor: { type: 'user', accountId: actor.accountId },
       message: audit.message,
-      metadata: { medicalRecordId, firstVersion: nextVersion },
+      metadata: { medicalRecordId, firstVersion: nextVersion, editingLocked: true },
     });
     return result;
   });

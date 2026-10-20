@@ -25,6 +25,7 @@ interface AuthContextValue {
   isRestoring: boolean;
   loginUser: (username: string, password: string) => Promise<void>;
   loginAdmin: (password: string, totpCode: string) => Promise<void>;
+  refreshIdentity: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -91,17 +92,6 @@ export function AuthProvider({ children, initialSession, restoreSession = true }
     return () => { cancelled = true; };
   }, [initialSession, restoreSession]);
 
-  useEffect(() => {
-    if (!identity) return;
-    const session = getApiSession();
-    if (!session) return;
-    const delay = Math.max(1_000, session.expiresAt - Date.now() - 30_000);
-    const timer = window.setTimeout(() => {
-      void refreshApiSession(identity.subjectType).catch(() => setIdentity(null));
-    }, delay);
-    return () => window.clearTimeout(timer);
-  }, [identity, sessionRevision]);
-
   const loginUser = useCallback(async (username: string, password: string) => {
     const principal = await authApi.loginUser(username, password);
     setIdentity(principal);
@@ -116,6 +106,28 @@ export function AuthProvider({ children, initialSession, restoreSession = true }
     queryClient.clear();
   }, [queryClient]);
 
+  const refreshIdentity = useCallback(async () => {
+    const session = getApiSession();
+    if (!session) return;
+    const principal = session.subjectType === 'admin'
+      ? { ...(await authApi.currentAdmin()), subjectType: 'admin' as const }
+      : { ...(await authApi.currentUser()), subjectType: 'user' as const };
+    setIdentity(principal);
+  }, []);
+
+  useEffect(() => {
+    if (!identity) return;
+    const session = getApiSession();
+    if (!session) return;
+    const delay = Math.max(1_000, session.expiresAt - Date.now() - 30_000);
+    const timer = window.setTimeout(() => {
+      void refreshApiSession(identity.subjectType)
+        .then(refreshIdentity)
+        .catch(() => setIdentity(null));
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [identity, refreshIdentity, sessionRevision]);
+
   const logout = useCallback(async () => {
     const subjectType = identity?.subjectType ?? getApiSession()?.subjectType;
     if (subjectType) await logoutApiSession(subjectType);
@@ -129,8 +141,9 @@ export function AuthProvider({ children, initialSession, restoreSession = true }
     isRestoring,
     loginUser,
     loginAdmin,
+    refreshIdentity,
     logout,
-  }), [identity, isRestoring, loginUser, loginAdmin, logout]);
+  }), [identity, isRestoring, loginUser, loginAdmin, refreshIdentity, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
