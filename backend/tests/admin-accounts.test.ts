@@ -333,7 +333,9 @@ describe('administrator medical-worker account management', () => {
       decodeURIComponent(cookiePair(login).split('=', 2)[1]),
     ).sessionId as string;
 
-    const response = await request(app).delete(`/api/medical-workers/${managedWorkerId}`);
+    const response = await request(app)
+      .delete(`/api/medical-workers/${managedWorkerId}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`);
     expect(response.status).toBe(204);
     expect(
       (await prisma.account.findUniqueOrThrow({ where: { id: managedAccountId } })).isActive,

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { MedicalRecordEventType, Prisma } from '@prisma/client';
-import { ConflictError, NotFoundError } from '../lib/app-error.js';
+import { MedicalRecordEventType, MedicalWorkerRole, Prisma } from '@prisma/client';
+import { ConflictError, ForbiddenError, NotFoundError } from '../lib/app-error.js';
 import { prisma } from '../lib/prisma.js';
 import type {
   AddDiagnosisInput,
@@ -18,6 +18,28 @@ type StreamOperation<T> = (
   nextVersion: number,
 ) => Promise<T>;
 
+async function lockWorker(
+  transaction: Prisma.TransactionClient,
+  workerId: number,
+) {
+  const workers = await transaction.$queryRaw<Array<{ id: number }>>(Prisma.sql`
+    SELECT "id"
+    FROM "MedicalWorker"
+    WHERE "id" = ${workerId}
+    FOR SHARE
+  `);
+  if (workers.length !== 1) {
+    throw new NotFoundError('Medical worker');
+  }
+  const worker = await transaction.medicalWorker.findUniqueOrThrow({
+    where: { id: workerId },
+  });
+  if (worker.isDeleted) {
+    throw new ConflictError('A deleted medical worker cannot modify a medical record.');
+  }
+  return worker;
+}
+
 async function modifyStream<T>(
   medicalRecordId: number,
   workerId: number,
@@ -27,10 +49,16 @@ async function modifyStream<T>(
     // This serializes writers that use this service; the unique version constraint
     // remains the database backstop for writes that do not follow this lock protocol.
     await transaction.$queryRaw`SELECT pg_advisory_xact_lock(${medicalRecordId})::text`;
+    const worker = await lockWorker(transaction, workerId);
+    if (
+      worker.role !== MedicalWorkerRole.DOCTOR &&
+      worker.role !== MedicalWorkerRole.NURSE
+    ) {
+      throw new ForbiddenError('Insufficient permissions.');
+    }
 
-    const [medicalRecord, worker, events] = await Promise.all([
+    const [medicalRecord, events] = await Promise.all([
       transaction.medicalRecord.findUnique({ where: { id: medicalRecordId } }),
-      transaction.medicalWorker.findUnique({ where: { id: workerId } }),
       transaction.medicalRecordEvent.findMany({
         where: { medicalRecordId },
         orderBy: { version: 'asc' },
@@ -41,12 +69,8 @@ async function modifyStream<T>(
       throw new NotFoundError('Medical record');
     }
 
-    if (!worker) {
-      throw new NotFoundError('Medical worker');
-    }
-
-    if (worker.isDeleted) {
-      throw new ConflictError('A deleted medical worker cannot modify a medical record.');
+    if (medicalRecord.isEditingLocked) {
+      throw new ConflictError('Medical record is locked for editing.');
     }
 
     const state = rebuildMedicalRecord(events);
@@ -78,6 +102,7 @@ async function reconstructRecord(id: number, at?: Date) {
   return {
     id: record.id,
     patientId: record.patientId,
+    isEditingLocked: record.isEditingLocked,
     createdAt: record.createdAt,
     ...rebuildMedicalRecord(events),
   };
@@ -129,6 +154,26 @@ export const medicalRecordService = {
     return reconstructRecord(id, at);
   },
 
+  async unlock(id: number, workerId: number) {
+    return prisma.$transaction(async (transaction) => {
+      const worker = await lockWorker(transaction, workerId);
+      if (worker.role !== MedicalWorkerRole.DOCTOR) {
+        throw new ForbiddenError('Insufficient permissions.');
+      }
+      const result = await transaction.medicalRecord.updateMany({
+        where: { id, isEditingLocked: true },
+        data: { isEditingLocked: false },
+      });
+      if (result.count === 0) {
+        const existing = await transaction.medicalRecord.findUnique({ where: { id } });
+        if (!existing) {
+          throw new NotFoundError('Medical record');
+        }
+      }
+      return transaction.medicalRecord.findUniqueOrThrow({ where: { id } });
+    });
+  },
+
   async getEvents(id: number) {
     await findRecord(id);
     return prisma.medicalRecordEvent.findMany({
@@ -152,8 +197,8 @@ export const medicalRecordService = {
     });
   },
 
-  addDiagnosis(medicalRecordId: number, input: AddDiagnosisInput) {
-    return modifyStream(medicalRecordId, input.workerId, async (transaction, state, version) => {
+  addDiagnosis(medicalRecordId: number, input: AddDiagnosisInput, workerId: number) {
+    return modifyStream(medicalRecordId, workerId, async (transaction, state, version) => {
       if (state.diagnoses.some((item) => item.diagnosisId === input.diagnosisId)) {
         throw new ConflictError('Diagnosis is already active in this medical record.');
       }
@@ -175,7 +220,7 @@ export const medicalRecordService = {
       await transaction.medicalRecordEvent.create({
         data: {
           medicalRecordId,
-          workerId: input.workerId,
+          workerId,
           version,
           type: MedicalRecordEventType.DIAGNOSIS_ADDED,
           payload: snapshot,
@@ -208,13 +253,13 @@ export const medicalRecordService = {
     });
   },
 
-  addPrescription(medicalRecordId: number, input: AddPrescriptionInput) {
-    return modifyStream(medicalRecordId, input.workerId, async (transaction, _state, version) => {
+  addPrescription(medicalRecordId: number, input: AddPrescriptionInput, workerId: number) {
+    return modifyStream(medicalRecordId, workerId, async (transaction, _state, version) => {
       const prescription = { prescriptionId: randomUUID(), text: input.text };
       await transaction.medicalRecordEvent.create({
         data: {
           medicalRecordId,
-          workerId: input.workerId,
+          workerId,
           version,
           type: MedicalRecordEventType.PRESCRIPTION_ADDED,
           payload: prescription,
@@ -253,10 +298,11 @@ export const medicalRecordService = {
     medicalRecordId: number,
     prescriptionId: string,
     input: EditPrescriptionInput,
+    workerId: number,
   ) {
     return modifyStream(
       medicalRecordId,
-      input.workerId,
+      workerId,
       async (transaction, state, version) => {
         const previousPrescription = state.prescriptions.find(
           (item) => item.prescriptionId === prescriptionId,
@@ -271,7 +317,7 @@ export const medicalRecordService = {
         await transaction.medicalRecordEvent.create({
           data: {
             medicalRecordId,
-            workerId: input.workerId,
+            workerId,
             version,
             type: MedicalRecordEventType.PRESCRIPTION_REMOVED,
             payload: previousPrescription,
@@ -280,7 +326,7 @@ export const medicalRecordService = {
         await transaction.medicalRecordEvent.create({
           data: {
             medicalRecordId,
-            workerId: input.workerId,
+            workerId,
             version: version + 1,
             type: MedicalRecordEventType.PRESCRIPTION_ADDED,
             payload: prescription,

@@ -145,11 +145,12 @@ model Patient {
 }
 
 model MedicalRecord {
-  id        Int                  @id @default(autoincrement())
-  patientId Int                  @unique
-  createdAt DateTime             @default(now())
-  patient   Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  events    MedicalRecordEvent[]
+  id              Int                  @id @default(autoincrement())
+  patientId       Int                  @unique
+  isEditingLocked Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  patient         Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  events          MedicalRecordEvent[]
 }
 
 model MedicalRecordEvent {

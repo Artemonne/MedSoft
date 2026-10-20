@@ -1,17 +1,29 @@
 import { randomUUID } from 'node:crypto';
+import { MedicalWorkerRole } from '@prisma/client';
 import request from 'supertest';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
+import { bearer, createAuthorizationFixture } from './helpers/auth-fixture.js';
 
 const workerIds: number[] = [];
 const diagnosisIds: number[] = [];
 const patientIds: number[] = [];
+let authorization: Awaited<ReturnType<typeof createAuthorizationFixture>>;
+let adminToken: string;
+let doctorToken: string;
+
+beforeAll(async () => {
+  authorization = await createAuthorizationFixture([MedicalWorkerRole.DOCTOR], true);
+  adminToken = authorization.adminAccessToken!;
+  doctorToken = authorization.users.get(MedicalWorkerRole.DOCTOR)!.accessToken;
+});
 
 afterAll(async () => {
   await prisma.medicalWorker.deleteMany({ where: { id: { in: workerIds } } });
   await prisma.diagnosis.deleteMany({ where: { id: { in: diagnosisIds } } });
   await prisma.patient.deleteMany({ where: { id: { in: patientIds } } });
+  await authorization.cleanup();
   await prisma.$disconnect();
 });
 
@@ -19,7 +31,7 @@ describe('medical worker CRUD', () => {
   let workerId: number;
 
   it('creates a worker', async () => {
-    const response = await request(app).post('/api/medical-workers').send({
+    const response = await request(app).post('/api/medical-workers').set(bearer(adminToken)).send({
       firstName: 'Maria',
       lastName: 'Petrova',
       position: 'Doctor',
@@ -40,14 +52,16 @@ describe('medical worker CRUD', () => {
   });
 
   it('lists the created worker', async () => {
-    const response = await request(app).get('/api/medical-workers');
+    const response = await request(app).get('/api/medical-workers').set(bearer(adminToken));
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: workerId })]));
   });
 
   it('gets the worker by id', async () => {
-    const response = await request(app).get(`/api/medical-workers/${workerId}`);
+    const response = await request(app)
+      .get(`/api/medical-workers/${workerId}`)
+      .set(bearer(adminToken));
 
     expect(response.status).toBe(200);
     expect(response.body.id).toBe(workerId);
@@ -58,7 +72,7 @@ describe('medical worker CRUD', () => {
       firstName: 'Elena',
       lastName: 'Sidorova',
       position: 'Surgeon',
-    });
+    }).set(bearer(adminToken));
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
@@ -71,7 +85,7 @@ describe('medical worker CRUD', () => {
   });
 
   it('accepts one-character first and last names and defaults the role', async () => {
-    const response = await request(app).post('/api/medical-workers').send({
+    const response = await request(app).post('/api/medical-workers').set(bearer(adminToken)).send({
       firstName: 'A',
       lastName: 'B',
       position: 'Nurse',
@@ -83,7 +97,7 @@ describe('medical worker CRUD', () => {
   });
 
   it('rejects an empty name without weakening the position constraint', async () => {
-    const response = await request(app).post('/api/medical-workers').send({
+    const response = await request(app).post('/api/medical-workers').set(bearer(adminToken)).send({
       firstName: '',
       lastName: 'Petrova',
       position: 'Doctor',
@@ -92,7 +106,7 @@ describe('medical worker CRUD', () => {
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('VALIDATION_ERROR');
 
-    const shortPositionResponse = await request(app).post('/api/medical-workers').send({
+    const shortPositionResponse = await request(app).post('/api/medical-workers').set(bearer(adminToken)).send({
       firstName: 'A',
       lastName: 'B',
       position: 'RN',
@@ -101,7 +115,7 @@ describe('medical worker CRUD', () => {
   });
 
   it('rejects an unsupported API role', async () => {
-    const response = await request(app).post('/api/medical-workers').send({
+    const response = await request(app).post('/api/medical-workers').set(bearer(adminToken)).send({
       firstName: 'Anna',
       lastName: 'Petrova',
       position: 'Doctor',
@@ -113,16 +127,22 @@ describe('medical worker CRUD', () => {
   });
 
   it('soft deletes the worker and hides it from normal reads', async () => {
-    const deleteResponse = await request(app).delete(`/api/medical-workers/${workerId}`);
+    const deleteResponse = await request(app)
+      .delete(`/api/medical-workers/${workerId}`)
+      .set(bearer(adminToken));
     expect(deleteResponse.status).toBe(204);
 
     const row = await prisma.medicalWorker.findUnique({ where: { id: workerId } });
     expect(row?.isDeleted).toBe(true);
 
-    const getResponse = await request(app).get(`/api/medical-workers/${workerId}`);
+    const getResponse = await request(app)
+      .get(`/api/medical-workers/${workerId}`)
+      .set(bearer(adminToken));
     expect(getResponse.status).toBe(404);
 
-    const listResponse = await request(app).get('/api/medical-workers');
+    const listResponse = await request(app)
+      .get('/api/medical-workers')
+      .set(bearer(adminToken));
     expect(listResponse.body).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: workerId })]),
     );
@@ -137,7 +157,10 @@ describe('diagnosis CRUD', () => {
   const updatedName = `Dx ${randomUUID().slice(0, 8)}`;
 
   it('creates a diagnosis', async () => {
-    const response = await request(app).post('/api/diagnoses').send({ code, name });
+    const response = await request(app)
+      .post('/api/diagnoses')
+      .set(bearer(doctorToken))
+      .send({ code, name });
 
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({ code, name });
@@ -153,7 +176,9 @@ describe('diagnosis CRUD', () => {
       select: { id: true },
     });
 
-    const firstResponse = await request(app).post('/api/diagnoses/seed');
+    const firstResponse = await request(app)
+      .post('/api/diagnoses/seed')
+      .set(bearer(doctorToken));
     expect(firstResponse.status).toBe(200);
     expect(firstResponse.body).toMatchObject({
       created: codes.length - existing.length,
@@ -166,13 +191,17 @@ describe('diagnosis CRUD', () => {
       ...loaded.filter((item) => !existing.some((row) => row.id === item.id)).map((item) => item.id),
     );
 
-    const secondResponse = await request(app).post('/api/diagnoses/seed');
+    const secondResponse = await request(app)
+      .post('/api/diagnoses/seed')
+      .set(bearer(doctorToken));
     expect(secondResponse.status).toBe(200);
     expect(secondResponse.body).toEqual({ created: 0, total: codes.length });
   });
 
   it('gets the diagnosis by id', async () => {
-    const response = await request(app).get(`/api/diagnoses/${diagnosisId}`);
+    const response = await request(app)
+      .get(`/api/diagnoses/${diagnosisId}`)
+      .set(bearer(doctorToken));
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ id: diagnosisId, code, name });
@@ -181,6 +210,7 @@ describe('diagnosis CRUD', () => {
   it('updates the diagnosis', async () => {
     const response = await request(app)
       .put(`/api/diagnoses/${diagnosisId}`)
+      .set(bearer(doctorToken))
       .send({ code, name: updatedName });
 
     expect(response.status).toBe(200);
@@ -188,7 +218,7 @@ describe('diagnosis CRUD', () => {
   });
 
   it('rejects a code whose length is not six', async () => {
-    const response = await request(app).post('/api/diagnoses').send({
+    const response = await request(app).post('/api/diagnoses').set(bearer(doctorToken)).send({
       code: 'ABC',
       name: 'Valid name',
     });
@@ -198,7 +228,7 @@ describe('diagnosis CRUD', () => {
   });
 
   it('rejects a diagnosis name shorter than three characters', async () => {
-    const response = await request(app).post('/api/diagnoses').send({
+    const response = await request(app).post('/api/diagnoses').set(bearer(doctorToken)).send({
       code: otherCode,
       name: 'AB',
     });
@@ -208,7 +238,7 @@ describe('diagnosis CRUD', () => {
   });
 
   it('returns conflict for a duplicate code', async () => {
-    const response = await request(app).post('/api/diagnoses').send({
+    const response = await request(app).post('/api/diagnoses').set(bearer(doctorToken)).send({
       code,
       name: `Dx ${randomUUID().slice(0, 8)}`,
     });
@@ -218,7 +248,7 @@ describe('diagnosis CRUD', () => {
   });
 
   it('returns conflict for a duplicate name', async () => {
-    const response = await request(app).post('/api/diagnoses').send({
+    const response = await request(app).post('/api/diagnoses').set(bearer(doctorToken)).send({
       code: otherCode,
       name: updatedName,
     });
@@ -228,10 +258,14 @@ describe('diagnosis CRUD', () => {
   });
 
   it('deletes the diagnosis', async () => {
-    const deleteResponse = await request(app).delete(`/api/diagnoses/${diagnosisId}`);
+    const deleteResponse = await request(app)
+      .delete(`/api/diagnoses/${diagnosisId}`)
+      .set(bearer(doctorToken));
     expect(deleteResponse.status).toBe(204);
 
-    const getResponse = await request(app).get(`/api/diagnoses/${diagnosisId}`);
+    const getResponse = await request(app)
+      .get(`/api/diagnoses/${diagnosisId}`)
+      .set(bearer(doctorToken));
     expect(getResponse.status).toBe(404);
   });
 });
@@ -240,7 +274,7 @@ describe('patient CRUD', () => {
   let patientId: number;
 
   it('creates a patient', async () => {
-    const response = await request(app).post('/api/patients').send({
+    const response = await request(app).post('/api/patients').set(bearer(doctorToken)).send({
       firstName: 'Alex',
       lastName: 'Ivanov',
       middleName: 'Sergeevich',
@@ -263,14 +297,16 @@ describe('patient CRUD', () => {
   });
 
   it('lists the created patient', async () => {
-    const response = await request(app).get('/api/patients');
+    const response = await request(app).get('/api/patients').set(bearer(doctorToken));
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: patientId })]));
   });
 
   it('gets the patient by id', async () => {
-    const response = await request(app).get(`/api/patients/${patientId}`);
+    const response = await request(app)
+      .get(`/api/patients/${patientId}`)
+      .set(bearer(doctorToken));
 
     expect(response.status).toBe(200);
     expect(response.body.id).toBe(patientId);
@@ -283,7 +319,7 @@ describe('patient CRUD', () => {
       birthDate: '1991-03-04',
       sex: 'FEMALE',
       comment: null,
-    });
+    }).set(bearer(doctorToken));
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
@@ -297,7 +333,7 @@ describe('patient CRUD', () => {
   });
 
   it('rejects an invalid sex value', async () => {
-    const response = await request(app).post('/api/patients').send({
+    const response = await request(app).post('/api/patients').set(bearer(doctorToken)).send({
       firstName: 'Alex',
       lastName: 'Ivanov',
       birthDate: '1990-01-02',
@@ -309,7 +345,7 @@ describe('patient CRUD', () => {
   });
 
   it('rejects a comment longer than 32 characters', async () => {
-    const response = await request(app).post('/api/patients').send({
+    const response = await request(app).post('/api/patients').set(bearer(doctorToken)).send({
       firstName: 'Alex',
       lastName: 'Ivanov',
       birthDate: '1990-01-02',
@@ -325,7 +361,7 @@ describe('patient CRUD', () => {
     const tomorrow = new Date();
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
-    const response = await request(app).post('/api/patients').send({
+    const response = await request(app).post('/api/patients').set(bearer(doctorToken)).send({
       firstName: 'Alex',
       lastName: 'Ivanov',
       birthDate: tomorrow.toISOString().slice(0, 10),
@@ -337,7 +373,9 @@ describe('patient CRUD', () => {
   });
 
   it('physically deletes a patient without a medical record', async () => {
-    const deleteResponse = await request(app).delete(`/api/patients/${patientId}`);
+    const deleteResponse = await request(app)
+      .delete(`/api/patients/${patientId}`)
+      .set(bearer(doctorToken));
     expect(deleteResponse.status).toBe(204);
 
     const row = await prisma.patient.findUnique({ where: { id: patientId } });

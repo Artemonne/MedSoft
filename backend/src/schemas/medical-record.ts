@@ -20,21 +20,13 @@ export const recordPrescriptionParamsSchema = z
 
 export const emptyBodySchema = z.object({}).strict();
 
-export const workerActionSchema = z
-  .object({
-    workerId: positiveId,
-  })
-  .strict();
-
 export const addDiagnosisSchema = z
   .object({
-    workerId: positiveId,
     diagnosisId: positiveId,
   })
   .strict();
 
 const prescriptionFields = {
-  workerId: positiveId,
   text: z.string().trim().min(3).max(128),
 };
 
