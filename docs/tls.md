@@ -48,7 +48,30 @@ TLS terminates independently at the Vite development server for the browser conn
 
 The backend certificate and key default to `certificates\local\server.cert.pem` and `certificates\local\server.key.pem`. The paths can be overridden with `TLS_SERVER_CERT_PATH` and `TLS_SERVER_KEY_PATH` when starting the backend.
 
-## Manual connection checks
+## Viewing the certificate for the laboratory demonstration
+
+The React client runs in a browser. Open `https://localhost:5173` and use the
+browser's site information / connection security / certificate viewer to inspect
+the certificate and its certification path. Trust the educational CA as described
+above; do not bypass certificate warnings.
+
+Vite is also a non-browser TLS client when forwarding API requests. After starting
+`npm run dev`, open `https://localhost:5173/api/health`. The frontend terminal prints
+`[TLS proxy -> https://localhost:3001] Verified server certificate`, followed by
+Subject, Issuer, Not Before, Not After, Serial Number and SHA-256 fingerprint.
+This information comes from the peer certificate on the actual, successfully
+verified proxy TLS socket, once per connection (reused connections do not repeat
+the output). It is not read from the backend certificate file. No private keys,
+request headers or tokens are logged. Verification of trust and hostname remains
+enabled.
+
+The proxy log shows the leaf certificate only. For the full list actually sent
+by the backend, add `-showcerts -verify_hostname localhost` to the OpenSSL command
+below. A root CA is normally omitted by servers; a browser may complete the path
+from its trust store. `npm run certs:verify` checks local files and is not a
+substitute for inspecting a live connection.
+
+## Manual connection checks (OpenSSL)
 
 With the servers running, a trusted TLS 1.3 request succeeds:
 
