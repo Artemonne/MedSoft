@@ -3,6 +3,7 @@ export type MedicalWorkerRole = 'doctor' | 'laboratory-technician' | 'nurse' | '
 export interface AuthenticatedMedicalWorker {
   id: number;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   position: string;
   role: MedicalWorkerRole;
@@ -29,6 +30,7 @@ export type AuthIdentity = UserAccountIdentity | AdministratorIdentity;
 export interface MedicalWorker {
   id: number;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   position: string;
   role: MedicalWorkerRole;
@@ -39,6 +41,7 @@ export interface MedicalWorker {
 
 export interface MedicalWorkerInput {
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   position: string;
   role?: MedicalWorkerRole;
@@ -106,6 +109,7 @@ export interface MedicalRecordState extends MedicalRecordSummary {
 export interface MedicalRecordEventWorker {
   id: number;
   firstName: string;
+  middleName: string | null;
   lastName: string;
   position: string;
   isDeleted: boolean;

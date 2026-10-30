@@ -1,3 +1,4 @@
+import { fullName } from '../utils/full-name';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -81,7 +82,7 @@ function EventHistory({ events }: { events: MedicalRecordEvent[] }) {
       const detail = 'text' in event.payload
         ? event.payload.text
         : `${event.payload.code} — ${event.payload.name}`;
-      const worker = `${event.worker.lastName} ${event.worker.firstName}, ${event.worker.position}`;
+      const worker = `${fullName(event.worker)}, ${event.worker.position}`;
       return <ListItem key={event.version} divider alignItems="flex-start">
         <ListItemText
           primary={<Stack direction="row" gap={1} alignItems="center" flexWrap="wrap"><Typography fontWeight={600}>{eventLabels[event.type]}</Typography><Chip label={`Версия ${event.version}`} size="small" variant="outlined" /></Stack>}

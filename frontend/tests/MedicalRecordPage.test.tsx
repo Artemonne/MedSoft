@@ -44,7 +44,7 @@ function mockApi(state = record, events: unknown[] = []) {
 
 function renderPage(role: MedicalWorkerRole = 'doctor') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  const identity = { subjectType: 'user' as const, id: '11111111-1111-4111-8111-111111111111', username: 'worker', isActive: true, medicalWorker: { id: 5, firstName: 'Анна', lastName: 'Петрова', position: 'Врач', role } };
+  const identity = { subjectType: 'user' as const, id: '11111111-1111-4111-8111-111111111111', username: 'worker', isActive: true, medicalWorker: { middleName: null, id: 5, firstName: 'Анна', lastName: 'Петрова', position: 'Врач', role } };
   return render(<QueryClientProvider client={client}><AuthProvider initialSession={{ identity, accessToken: 'token', accessTokenExpiresIn: 900 }}><MemoryRouter initialEntries={['/app/medical-records/7']}><App /></MemoryRouter></AuthProvider></QueryClientProvider>);
 }
 
@@ -134,7 +134,7 @@ describe('MedicalRecordPage authorization-aware UI', () => {
       if (url.endsWith('/patients/3')) return Promise.resolve(jsonResponse(patient));
       if (url.endsWith('/api/auth/me')) return Promise.resolve(jsonResponse({
         id: '11111111-1111-4111-8111-111111111111', username: 'worker', isActive: true,
-        medicalWorker: { id: 5, firstName: 'Анна', lastName: 'Петрова', position: 'Врач', role: 'other' },
+        medicalWorker: { middleName: null, id: 5, firstName: 'Анна', lastName: 'Петрова', position: 'Врач', role: 'other' },
       }));
       if (method === 'GET' && url.endsWith('/diagnoses')) return Promise.resolve(jsonResponse([diagnosis]));
       if (method === 'POST' && url.endsWith('/diagnoses')) {

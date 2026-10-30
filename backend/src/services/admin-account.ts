@@ -45,6 +45,7 @@ function publicAccount(account: AccountWithWorker) {
           id: account.medicalWorker.id,
           firstName: account.medicalWorker.firstName,
           lastName: account.medicalWorker.lastName,
+          middleName: account.medicalWorker.middleName,
           position: account.medicalWorker.position,
           role: prismaRoleToApi[account.medicalWorker.role],
           isDeleted: account.medicalWorker.isDeleted,

@@ -38,9 +38,9 @@ export function UserLoginPage() {
   return <AuthCard title="Вход медработника" subtitle="Используйте выданные администратором логин и пароль.">
     <Stack component="form" gap={2} onSubmit={(event) => void submit(event)}>
       {error && <Alert severity="error">Неверные учётные данные или аккаунт деактивирован.</Alert>}
-      <TextField label="Имя пользователя" value={username} onChange={(event) => setUsername(event.target.value)} inputProps={{ minLength: 3, maxLength: 16 }} required autoFocus />
+      <TextField label="Имя пользователя" value={username} onChange={(event) => setUsername(event.target.value)} inputProps={{ minLength: 3, maxLength: 32 }} required autoFocus />
       <TextField label="Пароль" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" />
-      <Button type="submit" variant="contained" size="large" disabled={pending || username.trim().length < 3 || !password}>{pending ? 'Вход…' : 'Войти'}</Button>
+      <Button type="submit" variant="contained" size="large" disabled={pending || username.trim().length < 3 || username.trim().length > 32 || !password}>{pending ? 'Вход…' : 'Войти'}</Button>
       <Link component={RouterLink} to="/admin/login" textAlign="center">Вход администратора</Link>
     </Stack>
   </AuthCard>;

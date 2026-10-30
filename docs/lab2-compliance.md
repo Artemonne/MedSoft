@@ -6,7 +6,7 @@
 
 | Требование | Реализация | Проверка | Статус |
 | --- | --- | --- | --- |
-| Account: UUID, username 3–16 unique, hash, timestamps, active | `backend/prisma/schema.prisma`, миграция `20261020141814...` | `security-model.test.ts`, Prisma validate, ограничения чистой БД | PASS |
+| Account: UUID, username 3–32 unique, hash, timestamps, active | `backend/prisma/schema.prisma`, миграция `20261020141814...` | `security-model.test.ts`, Prisma validate, ограничения чистой БД | PASS |
 | Опциональная связь account–worker 0..1↔0..1; штатный API требует worker | schema, `schemas/admin-account.ts`, `services/admin-account.ts` | `security-model.test.ts`, `admin-accounts.test.ts` | PASS |
 | Роли doctor/laboratory-technician/nurse/other, default other; имя/фамилия от 1 | schema, migration, `schemas/medical-worker.ts` | `core-crud.test.ts`; preservation migration query | PASS |
 | Soft-delete деактивирует аккаунт и отзывает активные refresh | `services/medical-worker.ts`, `lib/account-sessions.ts` | `admin-accounts.test.ts` | PASS |

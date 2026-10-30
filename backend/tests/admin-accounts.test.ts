@@ -43,7 +43,7 @@ describe('administrator medical-worker account management', () => {
   async function managedLogin() {
     return request(app)
       .post('/api/auth/login')
-      .send({ username: `managed${suffix}`, password: managedPassword });
+      .send({ username: `managed${suffix}${'x'.repeat(17)}`, password: managedPassword });
   }
 
   beforeAll(async () => {
@@ -172,14 +172,14 @@ describe('administrator medical-worker account management', () => {
 
   it('creates a linked account and reveals its generated password only once', async () => {
     const response = await adminCall('post', '/api/admin/accounts').send({
-      username: `managed${suffix}`,
+      username: `managed${suffix}${'x'.repeat(17)}`,
       medicalWorkerId: managedWorkerId,
     });
 
     expect(response.status).toBe(201);
     expect(response.body.generatedPassword).toMatch(/^[A-Za-z0-9]{12}$/);
     expect(response.body.account).toMatchObject({
-      username: `managed${suffix}`,
+      username: `managed${suffix}${'x'.repeat(17)}`,
       isActive: true,
       medicalWorker: { id: managedWorkerId, role: 'other' },
     });
@@ -197,7 +197,7 @@ describe('administrator medical-worker account management', () => {
 
   it('enforces unique usernames and one account per medical worker', async () => {
     const duplicateUsername = await adminCall('post', '/api/admin/accounts').send({
-      username: `managed${suffix}`,
+      username: `managed${suffix}${'x'.repeat(17)}`,
       medicalWorkerId: secondWorkerId,
     });
     const duplicateWorker = await adminCall('post', '/api/admin/accounts').send({
@@ -218,7 +218,7 @@ describe('administrator medical-worker account management', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: managedAccountId,
-          username: `managed${suffix}`,
+          username: `managed${suffix}${'x'.repeat(17)}`,
           medicalWorker: expect.objectContaining({ id: managedWorkerId }),
         }),
       ]),

@@ -1,3 +1,4 @@
+import { fullName } from '../utils/full-name';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -98,7 +99,7 @@ export function AccountsPage() {
           {accounts.data.length === 0 && <TableRow><TableCell colSpan={7} align="center">Аккаунты не созданы</TableCell></TableRow>}
           {accounts.data.map((account) => <TableRow key={account.id} hover>
             <TableCell>{account.username}</TableCell>
-            <TableCell>{account.medicalWorker ? `${account.medicalWorker.lastName} ${account.medicalWorker.firstName}` : 'Не связан'}</TableCell>
+            <TableCell>{account.medicalWorker ? fullName(account.medicalWorker) : 'Не связан'}</TableCell>
             <TableCell>{account.medicalWorker && <Select size="small" value={account.medicalWorker.role} disabled={role.isPending || account.medicalWorker.isDeleted} onChange={(event) => role.mutate({ account, nextRole: event.target.value as MedicalWorkerRole })}>{Object.entries(roleLabels).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}</Select>}</TableCell>
             <TableCell><Chip size="small" color={account.isActive ? 'success' : 'default'} label={account.isActive ? 'Активен' : 'Отключён'} /></TableCell>
             <TableCell>{new Date(account.createdAt).toLocaleString('ru-RU')}</TableCell>
@@ -110,13 +111,13 @@ export function AccountsPage() {
 
     <Dialog open={createOpen} onClose={() => !create.isPending && setCreateOpen(false)} fullWidth maxWidth="sm">
       <DialogTitle>Новый аккаунт</DialogTitle><DialogContent><Stack gap={2} sx={{ pt: 1 }}>
-        <TextField label="Username" value={username} onChange={(event) => setUsername(event.target.value)} inputProps={{ minLength: 3, maxLength: 16 }} helperText="От 3 до 16 символов" autoFocus />
+        <TextField label="Username" value={username} onChange={(event) => setUsername(event.target.value)} inputProps={{ minLength: 3, maxLength: 32 }} helperText="От 3 до 32 символов" autoFocus />
         <FormControl><InputLabel id="account-worker-label">Медработник</InputLabel><Select labelId="account-worker-label" label="Медработник" value={workerId} onChange={(event) => setWorkerId(String(event.target.value))}>
-          {availableWorkers.map((worker) => <MenuItem key={worker.id} value={worker.id}>{worker.lastName} {worker.firstName} — {worker.position}</MenuItem>)}
+          {availableWorkers.map((worker) => <MenuItem key={worker.id} value={worker.id}>{fullName(worker)} — {worker.position}</MenuItem>)}
         </Select></FormControl>
         {workers.isError && <Alert severity="error">Не удалось загрузить медработников.</Alert>}
         {!workers.isPending && availableWorkers.length === 0 && <Alert severity="info">Нет медработников без аккаунта.</Alert>}
-      </Stack></DialogContent><DialogActions><Button onClick={() => setCreateOpen(false)} disabled={create.isPending}>Отмена</Button><Button variant="contained" onClick={() => create.mutate()} disabled={create.isPending || username.trim().length < 3 || !workerId}>Создать</Button></DialogActions>
+      </Stack></DialogContent><DialogActions><Button onClick={() => setCreateOpen(false)} disabled={create.isPending}>Отмена</Button><Button variant="contained" onClick={() => create.mutate()} disabled={create.isPending || username.trim().length < 3 || username.trim().length > 32 || !workerId}>Создать</Button></DialogActions>
     </Dialog>
 
     <Dialog open={Boolean(passwordIssue)} onClose={() => setPasswordIssue(null)} fullWidth maxWidth="sm">

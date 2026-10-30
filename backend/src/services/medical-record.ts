@@ -217,6 +217,7 @@ export const medicalRecordService = {
           select: {
             id: true,
             firstName: true,
+            middleName: true,
             lastName: true,
             position: true,
             isDeleted: true,

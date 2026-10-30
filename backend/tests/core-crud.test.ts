@@ -32,7 +32,7 @@ describe('medical worker CRUD', () => {
 
   it('creates a worker', async () => {
     const response = await request(app).post('/api/medical-workers').set(bearer(adminToken)).send({
-      firstName: 'Maria',
+      firstName: 'Maria', middleName: 'Ivanovna',
       lastName: 'Petrova',
       position: 'Doctor',
       role: 'laboratory-technician',
@@ -40,7 +40,7 @@ describe('medical worker CRUD', () => {
 
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({
-      firstName: 'Maria',
+      firstName: 'Maria', middleName: 'Ivanovna',
       lastName: 'Petrova',
       position: 'Doctor',
       role: 'laboratory-technician',
@@ -69,7 +69,7 @@ describe('medical worker CRUD', () => {
 
   it('updates all editable worker fields', async () => {
     const response = await request(app).put(`/api/medical-workers/${workerId}`).send({
-      firstName: 'Elena',
+      firstName: 'Elena', middleName: null,
       lastName: 'Sidorova',
       position: 'Surgeon',
     }).set(bearer(adminToken));
@@ -77,7 +77,7 @@ describe('medical worker CRUD', () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
       id: workerId,
-      firstName: 'Elena',
+      firstName: 'Elena', middleName: null,
       lastName: 'Sidorova',
       position: 'Surgeon',
       role: 'laboratory-technician',
@@ -92,7 +92,7 @@ describe('medical worker CRUD', () => {
     });
 
     expect(response.status).toBe(201);
-    expect(response.body).toMatchObject({ firstName: 'A', lastName: 'B', role: 'other' });
+    expect(response.body).toMatchObject({ firstName: 'A', lastName: 'B', middleName: null, role: 'other' });
     workerIds.push(response.body.id);
   });
 

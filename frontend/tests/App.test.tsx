@@ -16,7 +16,7 @@ const admin: AuthIdentity = {
 };
 const doctor: AuthIdentity = {
   subjectType: 'user', id: '11111111-1111-4111-8111-111111111111', username: 'doctor', isActive: true,
-  medicalWorker: { id: 5, firstName: 'Анна', lastName: 'Петрова', position: 'Врач', role: 'doctor' },
+  medicalWorker: { middleName: null, id: 5, firstName: 'Анна', lastName: 'Петрова', position: 'Врач', role: 'doctor' },
 };
 
 function renderApp(route: string, identity: AuthIdentity) {
@@ -31,6 +31,25 @@ function renderApp(route: string, identity: AuthIdentity) {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); sessionStorage.clear(); });
 
 describe('App routing and existing pages', () => {
+  it('edits and clears a worker middle name in surname-first forms', async () => {
+    const worker = { id: 1, firstName: 'Иван', middleName: 'Иванович', lastName: 'Иванов', position: 'Терапевт', role: 'doctor', isDeleted: false, createdAt: '', updatedAt: '' };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) =>
+      Promise.resolve(jsonResponse(init?.method === 'PUT' ? { ...worker, middleName: null } : [worker])));
+    renderApp('/admin/medical-workers', admin);
+    expect(await screen.findByText('Иванович')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Редактировать' }));
+    const surname = screen.getByLabelText('Фамилия');
+    const firstName = screen.getByLabelText('Имя');
+    const middleName = screen.getByLabelText('Отчество');
+    expect(surname.compareDocumentPosition(firstName) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(firstName.compareDocumentPosition(middleName) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(middleName).toHaveValue('Иванович');
+    fireEvent.change(middleName, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([, init]) =>
+      init?.method === 'PUT' && JSON.parse(String(init.body)).middleName === null)).toBe(true));
+  });
+
   it('shows separate navigation for administrator and worker', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]));
     const workerView = renderApp('/app/patients', doctor);

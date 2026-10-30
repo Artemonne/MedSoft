@@ -1,3 +1,4 @@
+import { fullName } from '../utils/full-name';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, CardContent, Stack, Typography } from '@mui/material';
 import { Link, useParams } from 'react-router-dom';
@@ -25,7 +26,7 @@ export function MedicalWorkerDetailsPage() {
     <Button component={Link} to="/admin/medical-workers" sx={{ alignSelf: 'flex-start' }}>← К списку медработников</Button>
     <Typography variant="h4" component="h1">Карточка медработника</Typography>
     <Card><CardContent><Stack gap={1}>
-      <Typography variant="h5">{worker.lastName} {worker.firstName}</Typography>
+      <Typography variant="h5">{fullName(worker)}</Typography>
       <Typography><strong>ID:</strong> {worker.id}</Typography>
       <Typography><strong>Должность:</strong> {worker.position}</Typography>
       <Typography><strong>Создан:</strong> {new Date(worker.createdAt).toLocaleString('ru-RU')}</Typography>

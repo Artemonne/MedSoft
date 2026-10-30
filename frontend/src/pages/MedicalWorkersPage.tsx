@@ -11,7 +11,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ErrorState, FeedbackSnackbar, LoadingState } from '../components/PageFeedback';
 import type { MedicalWorker, MedicalWorkerInput } from '../types';
 
-const emptyForm: MedicalWorkerInput = { firstName: '', lastName: '', position: '' };
+const emptyForm: MedicalWorkerInput = { firstName: '', middleName: null, lastName: '', position: '' };
 
 function validate(form: MedicalWorkerInput) {
   const errors: Partial<Record<keyof MedicalWorkerInput, string>> = {};
@@ -20,6 +20,7 @@ function validate(form: MedicalWorkerInput) {
     if (length < 1 || length > 24) errors[field] = 'От 1 до 24 символов';
   }
   if (form.position.trim().length < 3 || form.position.trim().length > 24) errors.position = 'От 3 до 24 символов';
+  if ((form.middleName?.trim().length ?? 0) > 24) errors.middleName = 'Не более 24 символов';
   return errors;
 }
 
@@ -54,7 +55,7 @@ export function MedicalWorkersPage() {
 
   const openForm = (worker: MedicalWorker | null) => {
     setEditing(worker);
-    setForm(worker ? { firstName: worker.firstName, lastName: worker.lastName, position: worker.position } : emptyForm);
+    setForm(worker ? { firstName: worker.firstName, lastName: worker.lastName, middleName: worker.middleName, position: worker.position } : emptyForm);
     setErrors({});
   };
   const submit = () => {
@@ -72,12 +73,12 @@ export function MedicalWorkersPage() {
       {query.isPending ? <LoadingState /> : query.isError ? <ErrorState /> : (
         <TableContainer component={Paper}>
           <Table>
-            <TableHead><TableRow><TableCell>ID</TableCell><TableCell>Имя</TableCell><TableCell>Фамилия</TableCell><TableCell>Должность</TableCell><TableCell align="right">Действия</TableCell></TableRow></TableHead>
+            <TableHead><TableRow><TableCell>ID</TableCell><TableCell>Фамилия</TableCell><TableCell>Имя</TableCell><TableCell>Отчество</TableCell><TableCell>Должность</TableCell><TableCell align="right">Действия</TableCell></TableRow></TableHead>
             <TableBody>
-              {query.data.length === 0 && <TableRow><TableCell colSpan={5} align="center">Медработники не найдены</TableCell></TableRow>}
+              {query.data.length === 0 && <TableRow><TableCell colSpan={6} align="center">Медработники не найдены</TableCell></TableRow>}
               {query.data.map((worker) => (
                 <TableRow key={worker.id} hover>
-                  <TableCell>{worker.id}</TableCell><TableCell>{worker.firstName}</TableCell><TableCell>{worker.lastName}</TableCell><TableCell>{worker.position}</TableCell>
+                  <TableCell>{worker.id}</TableCell><TableCell>{worker.lastName}</TableCell><TableCell>{worker.firstName}</TableCell><TableCell>{worker.middleName || '—'}</TableCell><TableCell>{worker.position}</TableCell>
                   <TableCell align="right"><Button onClick={() => navigate(`/admin/medical-workers/${worker.id}`)}>Открыть</Button><Button onClick={() => openForm(worker)}>Редактировать</Button><Button color="error" onClick={() => setDeleting(worker)}>Удалить</Button></TableCell>
                 </TableRow>
               ))}
@@ -88,8 +89,9 @@ export function MedicalWorkersPage() {
       <Dialog open={editing !== undefined} onClose={() => !save.isPending && setEditing(undefined)} fullWidth maxWidth="sm">
         <DialogTitle>{editing ? 'Редактировать медработника' : 'Новый медработник'}</DialogTitle>
         <DialogContent><Stack gap={2} sx={{ pt: 1 }}>
-          <TextField label="Имя" value={form.firstName} onChange={(event) => setForm({ ...form, firstName: event.target.value })} error={Boolean(errors.firstName)} helperText={errors.firstName} autoFocus />
-          <TextField label="Фамилия" value={form.lastName} onChange={(event) => setForm({ ...form, lastName: event.target.value })} error={Boolean(errors.lastName)} helperText={errors.lastName} />
+          <TextField label="Фамилия" value={form.lastName} onChange={(event) => setForm({ ...form, lastName: event.target.value })} error={Boolean(errors.lastName)} helperText={errors.lastName} autoFocus />
+          <TextField label="Имя" value={form.firstName} onChange={(event) => setForm({ ...form, firstName: event.target.value })} error={Boolean(errors.firstName)} helperText={errors.firstName} />
+          <TextField label="Отчество" value={form.middleName ?? ''} onChange={(event) => setForm({ ...form, middleName: event.target.value || null })} error={Boolean(errors.middleName)} helperText={errors.middleName} inputProps={{ maxLength: 24 }} />
           <TextField label="Должность" value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })} error={Boolean(errors.position)} helperText={errors.position} />
         </Stack></DialogContent>
         <DialogActions><Button onClick={() => setEditing(undefined)} disabled={save.isPending}>Отмена</Button><Button variant="contained" onClick={submit} disabled={save.isPending}>Сохранить</Button></DialogActions>

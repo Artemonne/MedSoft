@@ -23,6 +23,7 @@ type AccountWithWorker = {
   medicalWorker: {
     id: number;
     firstName: string;
+    middleName: string | null;
     lastName: string;
     position: string;
     role: MedicalWorkerRole;
@@ -47,6 +48,7 @@ function publicAccount(
       id: account.medicalWorker.id,
       firstName: account.medicalWorker.firstName,
       lastName: account.medicalWorker.lastName,
+      middleName: account.medicalWorker.middleName,
       position: account.medicalWorker.position,
       role: prismaRoleToApi[account.medicalWorker.role],
     },

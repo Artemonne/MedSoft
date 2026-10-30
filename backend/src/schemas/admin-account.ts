@@ -4,7 +4,7 @@ export const accountIdParamsSchema = z.object({ id: z.string().uuid() }).strict(
 
 export const createAccountSchema = z
   .object({
-    username: z.string().trim().min(3).max(16),
+    username: z.string().trim().min(3).max(32, 'Username must contain between 3 and 32 characters.'),
     medicalWorkerId: z.number().int().positive(),
   })
   .strict();

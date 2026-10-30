@@ -1,3 +1,4 @@
+import { fullName } from '../utils/full-name';
 import { AppBar, Box, Button, Chip, Container, Stack, Toolbar, Typography } from '@mui/material';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -20,7 +21,7 @@ export function AuthenticatedLayout({ title, links }: { title: string; links: Na
   const userIdentity = identity?.subjectType === 'user' ? identity : null;
   const worker = userIdentity?.medicalWorker ?? null;
   const subject = userIdentity
-    ? `${userIdentity.medicalWorker.lastName} ${userIdentity.medicalWorker.firstName} · ${userIdentity.username}`
+    ? `${fullName(userIdentity.medicalWorker)} · ${userIdentity.username}`
     : 'Системный администратор';
 
   return <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50' }}>

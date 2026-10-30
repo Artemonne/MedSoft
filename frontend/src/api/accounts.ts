@@ -10,6 +10,7 @@ export interface ManagedAccount {
   medicalWorker: {
     id: number;
     firstName: string;
+    middleName: string | null;
     lastName: string;
     position: string;
     role: MedicalWorkerRole;
