@@ -11,5 +11,7 @@ const api: LisApi = Object.freeze({
   submitResult: (input: { requestId: string; value: string }) => ipcRenderer.invoke(IPC.submitResult, input),
   reconcileSubmission: (requestId: string) => ipcRenderer.invoke(IPC.reconcile, requestId),
   listHistory: () => ipcRenderer.invoke(IPC.history),
+  listPendingSubmissions: () => ipcRenderer.invoke(IPC.pending),
+  getHistoryDetails: (id:string) => ipcRenderer.invoke(IPC.historyDetails,id),
 });
 contextBridge.exposeInMainWorld('lis', api);

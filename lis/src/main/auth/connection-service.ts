@@ -2,7 +2,7 @@ import type { ConnectionStatus } from '../../shared/types.js';
 import type { LisDatabase } from '../database/index.js';
 import { connectionInputSchema } from '../configuration/validation.js';
 
-interface SecretStorage { available(): Promise<boolean>; encrypt(value: string): Promise<Uint8Array>; decrypt(value: Uint8Array): Promise<string> }
+export interface SecretStorage { available(): Promise<boolean>; encrypt(value: string): Promise<Uint8Array>; decrypt(value: Uint8Array): Promise<string> }
 interface TokenResponse { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number }
 class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 

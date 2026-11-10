@@ -19,4 +19,6 @@ export function registerIpc(ipcMain: Pick<IpcMain, 'handle'>, service: Connectio
   ipcMain.handle(IPC.submitResult, secure((input: unknown) => submissions.submit(input)));
   ipcMain.handle(IPC.reconcile, secure((id: string) => submissions.reconcile(id)));
   ipcMain.handle(IPC.history, secure(() => submissions.listHistory()));
+  ipcMain.handle(IPC.pending, secure(() => submissions.listPending()));
+  ipcMain.handle(IPC.historyDetails, secure((id:string) => submissions.historyDetails(id)));
 }

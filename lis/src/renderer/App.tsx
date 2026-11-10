@@ -1,45 +1,629 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, AppBar, Box, Button, Chip, CircularProgress, Container, Dialog, DialogContent, DialogTitle, Drawer, FormControl, InputLabel, List, ListItemButton, ListItemText, MenuItem, Paper, Select, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Toolbar, Typography } from '@mui/material';
-import type { ConnectionStatus, HistoryItem, LabRequestDetails, LabRequestSummary, RequestFilter } from '../shared/types';
+import React, { useEffect, useState } from "react";
+import {
+  Alert,
+  AppBar,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Container,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Drawer,
+  FormControl,
+  InputLabel,
+  List,
+  ListItemButton,
+  ListItemText,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import type {
+  ConnectionStatus,
+  HistoryItem,
+  LabRequestDetails,
+  LabRequestSummary,
+  PendingSubmission,
+  RequestFilter,
+} from "../shared/types";
 
-const sections = ['Подключение', 'Запросы', 'История'] as const;
+const sections = ["Подключение", "Запросы", "История"] as const;
 export function App() {
-  const [section, setSection] = useState<(typeof sections)[number]>('Подключение');
-  const [status, setStatus] = useState<ConnectionStatus | null>(null); const [hisUrl, setHisUrl] = useState(''); const [apiKey, setApiKey] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  useEffect(() => { window.lis.getConnectionStatus().then((value) => { setStatus(value); setHisUrl(value.hisUrl ?? ''); }).catch((reason) => setError(message(reason))); }, []);
-  const run = async (operation: () => Promise<ConnectionStatus>) => { setBusy(true); setError(''); try { const next = await operation(); setStatus(next); setHisUrl(next.hisUrl ?? ''); setApiKey(''); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } };
-  return <Box sx={{ display: 'flex', minHeight: '100vh' }}><AppBar position="fixed" sx={{ zIndex: 1300 }}><Toolbar><Typography variant="h6">MedSoft LIS</Typography></Toolbar></AppBar>
-    <Drawer variant="permanent" sx={{ width: 220, '& .MuiDrawer-paper': { width: 220, pt: 8 } }}><List>{sections.map((item) => <ListItemButton key={item} selected={section === item} onClick={() => setSection(item)}><ListItemText primary={item} /></ListItemButton>)}</List></Drawer>
-    <Container component="main" maxWidth="md" sx={{ ml: '220px', pt: 12, pb: 5 }}>
-      {section === 'Подключение' ? <ConnectionPage status={status} hisUrl={hisUrl} apiKey={apiKey} busy={busy} error={error} setHisUrl={setHisUrl} setApiKey={setApiKey} connect={() => run(() => window.lis.configureConnection({ hisUrl, apiKey }))} test={() => run(window.lis.testConnection)} disconnect={() => run(window.lis.disconnect)} /> : section === 'Запросы' ? <RequestsPage configured={Boolean(status?.hisUrl)} /> : <HistoryPage connected={Boolean(status?.hisUrl)} />}
-    </Container></Box>;
+  const [section, setSection] =
+    useState<(typeof sections)[number]>("Подключение");
+  const [status, setStatus] = useState<ConnectionStatus | null>(null);
+  const [hisUrl, setHisUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    window.lis
+      .getConnectionStatus()
+      .then((value) => {
+        setStatus(value);
+        setHisUrl(value.hisUrl ?? "");
+      })
+      .catch((reason) => setError(message(reason)));
+  }, []);
+  const run = async (operation: () => Promise<ConnectionStatus>) => {
+    setBusy(true);
+    setError("");
+    try {
+      const next = await operation();
+      setStatus(next);
+      setHisUrl(next.hisUrl ?? "");
+      setApiKey("");
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Box sx={{ display: "flex", minHeight: "100vh" }}>
+      <AppBar position="fixed" sx={{ zIndex: 1300 }}>
+        <Toolbar>
+          <Typography variant="h6">MedSoft LIS</Typography>
+        </Toolbar>
+      </AppBar>
+      <Drawer
+        variant="permanent"
+        sx={{ width: 220, "& .MuiDrawer-paper": { width: 220, pt: 8 } }}
+      >
+        <List>
+          {sections.map((item) => (
+            <ListItemButton
+              key={item}
+              selected={section === item}
+              onClick={() => setSection(item)}
+            >
+              <ListItemText primary={item} />
+            </ListItemButton>
+          ))}
+        </List>
+      </Drawer>
+      <Container
+        component="main"
+        maxWidth="md"
+        sx={{ ml: "220px", pt: 12, pb: 5 }}
+      >
+        {section === "Подключение" ? (
+          <ConnectionPage
+            status={status}
+            hisUrl={hisUrl}
+            apiKey={apiKey}
+            busy={busy}
+            error={error}
+            setHisUrl={setHisUrl}
+            setApiKey={setApiKey}
+            connect={() =>
+              run(() => window.lis.configureConnection({ hisUrl, apiKey }))
+            }
+            test={() => run(window.lis.testConnection)}
+            disconnect={() => run(window.lis.disconnect)}
+          />
+        ) : section === "Запросы" ? (
+          <RequestsPage configured={Boolean(status?.hisUrl)} />
+        ) : (
+          <HistoryPage connected={Boolean(status?.hisUrl)} />
+        )}
+      </Container>
+    </Box>
+  );
 }
 
 function RequestsPage({ configured }: { configured: boolean }) {
-  const [filter, setFilter] = useState<RequestFilter>('all'); const [items, setItems] = useState<LabRequestSummary[]>([]); const [nextOffset, setNextOffset] = useState<number | null>(null); const [loading, setLoading] = useState(false); const [error, setError] = useState(''); const [loaded, setLoaded] = useState(false); const [details, setDetails] = useState<LabRequestDetails | null>(null);
-  const load = async (offset = 0) => { setLoading(true); setError(''); try { const page = await window.lis.listRequests({ filter, offset }); setItems((current) => offset === 0 ? page.items : [...new Map([...current, ...page.items].map((item) => [item.id, item])).values()]); setNextOffset(page.nextOffset); setLoaded(true); } catch (reason) { setError(message(reason)); } finally { setLoading(false); } };
-  const changeFilter = (value: RequestFilter) => { setFilter(value); setItems([]); setLoaded(false); setNextOffset(null); };
-  const open = async (id: string) => { setLoading(true); setError(''); try { setDetails(await window.lis.getRequestDetails(id)); } catch (reason) { setError(message(reason)); } finally { setLoading(false); } };
-  if (!configured) return <Alert severity="info">Сначала настройте подключение к HIS.</Alert>;
-  return <Stack gap={2}><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h4">Лабораторные запросы</Typography><Button variant="contained" disabled={loading} onClick={() => load(0)}>Обновить</Button></Stack>
-    <FormControl size="small" sx={{ width: 220 }}><InputLabel id="request-filter">Статус</InputLabel><Select labelId="request-filter" label="Статус" value={filter} onChange={(event) => changeFilter(event.target.value as RequestFilter)}><MenuItem value="all">Все</MenuItem><MenuItem value="active">Ожидают</MenuItem><MenuItem value="completed">Выполнены</MenuItem></Select></FormControl>
-    {error && <Alert severity="error" action={<Button color="inherit" onClick={() => load(0)}>Повторить</Button>}>{error}</Alert>}{loading && <CircularProgress />}{!loaded && !loading && <Alert severity="info">Нажмите «Обновить», чтобы получить актуальные запросы из HIS.</Alert>}{loaded && items.length === 0 && <Alert severity="info">Лабораторных запросов нет.</Alert>}
-    {items.length > 0 && <TableContainer component={Paper}><Table><TableHead><TableRow><TableCell>Анализ</TableCell><TableCell>LOINC</TableCell><TableCell>Пациент</TableCell><TableCell>Назначил</TableCell><TableCell>Дата</TableCell><TableCell>Статус</TableCell><TableCell /></TableRow></TableHead><TableBody>{items.map((item) => <TableRow key={item.id}><TableCell>{item.testName}</TableCell><TableCell>{item.loincCode}</TableCell><TableCell>{item.patientName}</TableCell><TableCell>{item.practitionerName}</TableCell><TableCell>{new Date(item.authoredOn).toLocaleString('ru-RU')}</TableCell><TableCell><Chip label={item.status === 'active' ? 'Ожидает выполнения' : 'Выполнен'} color={item.status === 'completed' ? 'success' : 'default'} /></TableCell><TableCell><Button onClick={() => open(item.id)}>Просмотреть</Button></TableCell></TableRow>)}</TableBody></Table></TableContainer>}
-    {nextOffset !== null && <Button disabled={loading} onClick={() => load(nextOffset)}>Загрузить ещё</Button>}
-    <Dialog open={Boolean(details)} onClose={() => setDetails(null)} fullWidth maxWidth="md"><DialogTitle>Лабораторный запрос</DialogTitle><DialogContent>{details && <Details value={details} onCompleted={() => { setDetails(null); void load(0); }} />}</DialogContent></Dialog>
-  </Stack>;
+  const [filter, setFilter] = useState<RequestFilter>("all");
+  const [items, setItems] = useState<LabRequestSummary[]>([]);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [details, setDetails] = useState<LabRequestDetails | null>(null);
+  const [pending, setPending] = useState<PendingSubmission[]>([]);
+  const [checking, setChecking] = useState<string | null>(null);
+  const loadPending = async () => {
+    try {
+      setPending(await window.lis.listPendingSubmissions());
+    } catch (reason) {
+      setError(message(reason));
+    }
+  };
+  useEffect(() => {
+    if (configured) void loadPending();
+  }, [configured]);
+  const load = async (offset = 0) => {
+    setLoading(true);
+    setError("");
+    try {
+      const page = await window.lis.listRequests({ filter, offset });
+      setItems((current) =>
+        offset === 0
+          ? page.items
+          : [
+              ...new Map(
+                [...current, ...page.items].map((item) => [item.id, item]),
+              ).values(),
+            ],
+      );
+      setNextOffset(page.nextOffset);
+      setLoaded(true);
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setLoading(false);
+    }
+  };
+  const changeFilter = (value: RequestFilter) => {
+    setFilter(value);
+    setItems([]);
+    setLoaded(false);
+    setNextOffset(null);
+  };
+  const open = async (id: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      setDetails(await window.lis.getRequestDetails(id));
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setLoading(false);
+    }
+  };
+  const reconcile = async (requestId: string) => {
+    setChecking(requestId);
+    setError("");
+    try {
+      const result = await window.lis.reconcileSubmission(requestId);
+      if (result.state === "COMPLETED") await load(0);
+      else setError(result.message);
+      await loadPending();
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setChecking(null);
+    }
+  };
+  if (!configured)
+    return <Alert severity="info">Сначала настройте подключение к HIS.</Alert>;
+  return (
+    <Stack gap={2}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center">
+        <Typography variant="h4">Лабораторные запросы</Typography>
+        <Button variant="contained" disabled={loading} onClick={() => load(0)}>
+          Обновить
+        </Button>
+      </Stack>
+      <FormControl size="small" sx={{ width: 220 }}>
+        <InputLabel id="request-filter">Статус</InputLabel>
+        <Select
+          labelId="request-filter"
+          label="Статус"
+          value={filter}
+          onChange={(event) =>
+            changeFilter(event.target.value as RequestFilter)
+          }
+        >
+          <MenuItem value="all">Все</MenuItem>
+          <MenuItem value="active">Ожидают</MenuItem>
+          <MenuItem value="completed">Выполнены</MenuItem>
+        </Select>
+      </FormControl>
+      {pending.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="h6">Незавершённые отправки</Typography>
+          <Stack gap={1} sx={{ mt: 1 }}>
+            {pending.map((item) => (
+              <Alert key={item.id} severity={item.state === "CONFLICT" ? "error" : "warning"} action={<Button color="inherit" disabled={checking === item.serviceRequestId} onClick={() => reconcile(item.serviceRequestId)}>Проверить состояние отправки</Button>}>
+                <b>{item.testName}</b> · {item.patientName} · {item.createdValue}<br />
+                {item.state === "UNKNOWN" ? "Не удалось подтвердить, что результат получен HIS." : item.state === "CONFLICT" ? "Обнаружен конфликт результатов. Автоматическая повторная отправка остановлена." : "Отправка не завершена."}
+              </Alert>
+            ))}
+          </Stack>
+        </Paper>
+      )}
+      {error && (
+        <Alert
+          severity="error"
+          action={
+            <Button color="inherit" onClick={() => load(0)}>
+              Повторить
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      )}
+      {loading && <CircularProgress />}
+      {!loaded && !loading && (
+        <Alert severity="info">
+          Нажмите «Обновить», чтобы получить актуальные запросы из HIS.
+        </Alert>
+      )}
+      {loaded && items.length === 0 && (
+        <Alert severity="info">Лабораторных запросов нет.</Alert>
+      )}
+      {items.length > 0 && (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Анализ</TableCell>
+                <TableCell>LOINC</TableCell>
+                <TableCell>Пациент</TableCell>
+                <TableCell>Назначил</TableCell>
+                <TableCell>Дата</TableCell>
+                <TableCell>Статус</TableCell>
+                <TableCell />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>{item.testName}</TableCell>
+                  <TableCell>{item.loincCode}</TableCell>
+                  <TableCell>{item.patientName}</TableCell>
+                  <TableCell>{item.practitionerName}</TableCell>
+                  <TableCell>
+                    {new Date(item.authoredOn).toLocaleString("ru-RU")}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={
+                        item.status === "active"
+                          ? "Ожидает выполнения"
+                          : "Выполнен"
+                      }
+                      color={
+                        item.status === "completed" ? "success" : "default"
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button onClick={() => open(item.id)}>Просмотреть</Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+      {nextOffset !== null && (
+        <Button disabled={loading} onClick={() => load(nextOffset)}>
+          Загрузить ещё
+        </Button>
+      )}
+      <Dialog
+        open={Boolean(details)}
+        onClose={() => setDetails(null)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>Лабораторный запрос</DialogTitle>
+        <DialogContent>
+          {details && (
+            <Details
+              value={details}
+              onCompleted={() => {
+                setDetails(null);
+                void load(0);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </Stack>
+  );
 }
-function Details({ value,onCompleted }: { value: LabRequestDetails;onCompleted():void }) { const gender: Record<string, string> = { male: 'Мужской', female: 'Женский', unknown: 'Не указан' };const [editing,setEditing]=useState(false);const [input,setInput]=useState('');const [busy,setBusy]=useState(false);const [notice,setNotice]=useState('');const submit=async()=>{setBusy(true);try{const result=await window.lis.submitResult({requestId:value.id,value:input});setNotice(result.message);if(result.state==='COMPLETED')onCompleted();}catch(error){setNotice(message(error));}finally{setBusy(false);}}; return <Stack gap={3} sx={{ pt: 1 }}><Paper variant="outlined" sx={{ p: 2 }}><Typography variant="h6">Назначение</Typography><Typography>{value.testName} · LOINC {value.loincCode}</Typography><Typography>ID: {value.id}</Typography><Typography>Пакет: {value.requisitionId ?? '—'}</Typography><Typography>Назначено: {new Date(value.authoredOn).toLocaleString('ru-RU')}</Typography></Paper><Paper variant="outlined" sx={{ p: 2 }}><Typography variant="h6">Пациент</Typography><Typography>{[value.patient.family, ...value.patient.given].join(' ')}</Typography><Typography>ID: {value.patient.id} · Дата рождения: {value.patient.birthDate ?? '—'} · Пол: {gender[value.patient.gender ?? ''] ?? value.patient.gender ?? '—'}</Typography></Paper><Paper variant="outlined" sx={{ p: 2 }}><Typography variant="h6">Назначивший медработник</Typography><Typography>{[value.practitioner.family, ...value.practitioner.given].join(' ')}</Typography><Typography>ID: {value.practitioner.id} · {value.practitioner.active === false ? 'Неактивен' : 'Активен'}</Typography></Paper><Alert severity={value.result ? 'success' : 'info'}>{value.result ? <>Результат: {value.result.kind === 'TEXT' ? value.result.textValue : `${value.result.quantityValue}${value.result.unit ? ` ${value.result.unit}` : ''}`}<br />Получен: {value.result.issued ? new Date(value.result.issued).toLocaleString('ru-RU') : 'дата не указана'}</> : 'Анализ ожидает выполнения'}</Alert>{!value.result&&!editing&&<Button variant="contained" onClick={()=>setEditing(true)}>Провести анализ</Button>}{editing&&<Paper variant="outlined" sx={{p:2}}><Stack gap={2}><Typography>Формат: {value.expectedResult.kind}{value.expectedResult.unit&&` · ${value.expectedResult.unit}`}</Typography><TextField label="Результат" value={input} onChange={e=>setInput(e.target.value)} /><Alert severity="warning">Подтвердите введённое значение перед отправкой. Финальный результат нельзя изменить.</Alert><Button variant="contained" disabled={busy||!input.trim()} onClick={submit}>Подтвердить и отправить</Button></Stack></Paper>}{notice&&<Alert severity="info">{notice}</Alert>}</Stack>; }
-
-function HistoryPage({connected}:{connected:boolean}){const [items,setItems]=useState<HistoryItem[]|null>(null);const [error,setError]=useState('');const load=async()=>{try{setItems(await window.lis.listHistory());setError('');}catch(e){setError(message(e));}};useEffect(()=>{void load();},[]);return <Stack gap={2}><Typography variant="h4">История</Typography><Alert severity={connected?'success':'info'}>{connected?'HIS подключена':'История доступна локально без подключения к HIS'}</Alert>{error&&<Alert severity="error">{error}</Alert>}{items===null?<CircularProgress/>:items.length===0?<Alert severity="info">Выполненных исследований пока нет.</Alert>:<TableContainer component={Paper}><Table><TableHead><TableRow><TableCell>Проведён</TableCell><TableCell>Анализ</TableCell><TableCell>Пациент</TableCell><TableCell>Назначил</TableCell><TableCell>Результат</TableCell><TableCell>Получен HIS</TableCell></TableRow></TableHead><TableBody>{items.map(item=><TableRow key={item.id}><TableCell>{new Date(item.effectiveAt).toLocaleString('ru-RU')}</TableCell><TableCell>{item.testName}<br/>{item.loincCode}</TableCell><TableCell>{item.patientName}</TableCell><TableCell>{item.practitionerName}</TableCell><TableCell>{item.resultDisplay}</TableCell><TableCell>{new Date(item.issued).toLocaleString('ru-RU')}</TableCell></TableRow>)}</TableBody></Table></TableContainer>}</Stack>}
-
-function ConnectionPage(props: { status: ConnectionStatus | null; hisUrl: string; apiKey: string; busy: boolean; error: string; setHisUrl(v: string): void; setApiKey(v: string): void; connect(): void; test(): void; disconnect(): void }) {
-  const connected = props.status?.state === 'connected';
-  return <Stack gap={3}><Box><Typography variant="h4">Подключение к HIS</Typography><Typography color="text.secondary">Настройте защищённое подключение сервисного аккаунта LIS.</Typography></Box>
-    {props.error && <Alert severity="error">{props.error}</Alert>}{connected && <Alert severity="success">Подключено</Alert>}
-    <Paper sx={{ p: 3 }}><Stack gap={2}><TextField label="Адрес HIS" value={props.hisUrl} disabled={connected || props.busy} onChange={(event) => props.setHisUrl(event.target.value)} placeholder="https://localhost:8443" /><TextField label="API key" type="password" value={props.apiKey} disabled={connected || props.busy} onChange={(event) => props.setApiKey(event.target.value)} helperText="Ключ используется один раз и не сохраняется." />
-      <Stack direction="row" gap={1} flexWrap="wrap">{!connected && <Button variant="contained" disabled={props.busy || !props.hisUrl || !props.apiKey} onClick={props.connect}>Подключиться</Button>}{props.status?.hisUrl && <Button variant="outlined" disabled={props.busy} onClick={props.test}>Проверить подключение</Button>}{props.status?.hisUrl && <Button color="error" disabled={props.busy} onClick={props.disconnect}>Отключиться</Button>}{props.busy && <CircularProgress size={24} />}</Stack></Stack></Paper>
-    {props.status?.hisUrl && <Paper sx={{ p: 3 }}><Typography><b>HIS:</b> {props.status.hisUrl}</Typography><Typography><b>FHIR:</b> {props.status.fhirVersion ?? '—'}</Typography><Typography><b>Последняя проверка:</b> {props.status.lastCheckedAt ? new Date(props.status.lastCheckedAt).toLocaleString('ru-RU') : '—'}</Typography></Paper>}
-  </Stack>;
+function Details({
+  value,
+  onCompleted,
+}: {
+  value: LabRequestDetails;
+  onCompleted(): void;
+}) {
+  const gender: Record<string, string> = {
+    male: "Мужской",
+    female: "Женский",
+    unknown: "Не указан",
+  };
+  const [editing, setEditing] = useState(false);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const result = await window.lis.submitResult({
+        requestId: value.id,
+        value: input,
+      });
+      setNotice(result.message);
+      if (result.state === "COMPLETED") onCompleted();
+    } catch (error) {
+      setNotice(message(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Stack gap={3} sx={{ pt: 1 }}>
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="h6">Назначение</Typography>
+        <Typography>
+          {value.testName} · LOINC {value.loincCode}
+        </Typography>
+        <Typography>ID: {value.id}</Typography>
+        <Typography>Пакет: {value.requisitionId ?? "—"}</Typography>
+        <Typography>
+          Назначено: {new Date(value.authoredOn).toLocaleString("ru-RU")}
+        </Typography>
+      </Paper>
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="h6">Пациент</Typography>
+        <Typography>
+          {[value.patient.family, ...value.patient.given].join(" ")}
+        </Typography>
+        <Typography>
+          ID: {value.patient.id} · Дата рождения:{" "}
+          {value.patient.birthDate ?? "—"} · Пол:{" "}
+          {gender[value.patient.gender ?? ""] ?? value.patient.gender ?? "—"}
+        </Typography>
+      </Paper>
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="h6">Назначивший медработник</Typography>
+        <Typography>
+          {[value.practitioner.family, ...value.practitioner.given].join(" ")}
+        </Typography>
+        <Typography>
+          ID: {value.practitioner.id} ·{" "}
+          {value.practitioner.active === false ? "Неактивен" : "Активен"}
+        </Typography>
+      </Paper>
+      <Alert severity={value.result ? "success" : "info"}>
+        {value.result ? (
+          <>
+            Результат:{" "}
+            {value.result.kind === "TEXT"
+              ? value.result.textValue
+              : `${value.result.quantityValue}${value.result.unit ? ` ${value.result.unit}` : ""}`}
+            <br />
+            Получен:{" "}
+            {value.result.issued
+              ? new Date(value.result.issued).toLocaleString("ru-RU")
+              : "дата не указана"}
+          </>
+        ) : (
+          "Анализ ожидает выполнения"
+        )}
+      </Alert>
+      {!value.result && !editing && (
+        <Button variant="contained" onClick={() => setEditing(true)}>
+          Провести анализ
+        </Button>
+      )}
+      {editing && (
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Stack gap={2}>
+            <Typography>
+              Формат: {value.expectedResult.kind}
+              {value.expectedResult.unit && ` · ${value.expectedResult.unit}`}
+            </Typography>
+            <TextField
+              label="Результат"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+            />
+            <Alert severity="warning">
+              Подтвердите введённое значение перед отправкой. Финальный
+              результат нельзя изменить.
+            </Alert>
+            <Button
+              variant="contained"
+              disabled={busy || !input.trim()}
+              onClick={submit}
+            >
+              Подтвердить и отправить
+            </Button>
+          </Stack>
+        </Paper>
+      )}
+      {notice && <Alert severity="info">{notice}</Alert>}
+    </Stack>
+  );
 }
-function message(value: unknown) { return value instanceof Error ? value.message : 'Неизвестная ошибка.'; }
+
+function HistoryPage({ connected }: { connected: boolean }) {
+  const [items, setItems] = useState<HistoryItem[] | null>(null);
+  const [selected, setSelected] = useState<HistoryItem | null>(null);
+  const [error, setError] = useState("");
+  const load = async () => {
+    try {
+      setItems(await window.lis.listHistory());
+      setError("");
+    } catch (e) {
+      setError(message(e));
+    }
+  };
+  useEffect(() => {
+    void load();
+  }, []);
+  const open = async (id: string) => {
+    try { setSelected(await window.lis.getHistoryDetails(id)); }
+    catch (reason) { setError(message(reason)); }
+  };
+  return (
+    <Stack gap={2}>
+      <Typography variant="h4">История</Typography>
+      <Alert severity={connected ? "success" : "info"}>
+        {connected
+          ? "HIS подключена"
+          : "История доступна локально без подключения к HIS"}
+      </Alert>
+      {error && <Alert severity="error">{error}</Alert>}
+      <Dialog open={Boolean(selected)} onClose={() => setSelected(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Результат исследования</DialogTitle>
+        <DialogContent>{selected && <Stack gap={1} sx={{ pt: 1 }}>
+          <Typography><b>Анализ:</b> {selected.testName} · LOINC {selected.loincCode}</Typography>
+          <Typography><b>Пациент:</b> {selected.patientName}</Typography>
+          <Typography><b>Назначил:</b> {selected.practitionerName}</Typography>
+          <Typography><b>Результат:</b> {selected.resultDisplay}</Typography>
+          <Typography><b>ServiceRequest:</b> {selected.serviceRequestId}</Typography>
+          <Typography><b>Observation:</b> {selected.observationId}</Typography>
+          <Typography><b>Проведён:</b> {new Date(selected.effectiveAt).toLocaleString("ru-RU")}</Typography>
+          <Typography><b>Получен HIS:</b> {new Date(selected.issued).toLocaleString("ru-RU")}</Typography>
+          <Typography><b>Подтверждён:</b> {new Date(selected.confirmedAt).toLocaleString("ru-RU")}</Typography>
+        </Stack>}</DialogContent>
+      </Dialog>
+      {items === null ? (
+        <CircularProgress />
+      ) : items.length === 0 ? (
+        <Alert severity="info">Выполненных исследований пока нет.</Alert>
+      ) : (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Проведён</TableCell>
+                <TableCell>Анализ</TableCell>
+                <TableCell>Пациент</TableCell>
+                <TableCell>Назначил</TableCell>
+                <TableCell>Результат</TableCell>
+                <TableCell>Получен HIS</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    {new Date(item.effectiveAt).toLocaleString("ru-RU")}
+                  </TableCell>
+                  <TableCell>
+                    {item.testName}
+                    <br />
+                    {item.loincCode}
+                  </TableCell>
+                  <TableCell>{item.patientName}</TableCell>
+                  <TableCell>{item.practitionerName}</TableCell>
+                  <TableCell>{item.resultDisplay}</TableCell>
+                  <TableCell><Button onClick={() => open(item.id)}>Подробнее</Button></TableCell>
+                  <TableCell>
+                    {new Date(item.issued).toLocaleString("ru-RU")}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Stack>
+  );
+}
+
+function ConnectionPage(props: {
+  status: ConnectionStatus | null;
+  hisUrl: string;
+  apiKey: string;
+  busy: boolean;
+  error: string;
+  setHisUrl(v: string): void;
+  setApiKey(v: string): void;
+  connect(): void;
+  test(): void;
+  disconnect(): void;
+}) {
+  const connected = props.status?.state === "connected";
+  return (
+    <Stack gap={3}>
+      <Box>
+        <Typography variant="h4">Подключение к HIS</Typography>
+        <Typography color="text.secondary">
+          Настройте защищённое подключение сервисного аккаунта LIS.
+        </Typography>
+      </Box>
+      {props.error && <Alert severity="error">{props.error}</Alert>}
+      {connected && <Alert severity="success">Подключено</Alert>}
+      <Paper sx={{ p: 3 }}>
+        <Stack gap={2}>
+          <TextField
+            label="Адрес HIS"
+            value={props.hisUrl}
+            disabled={connected || props.busy}
+            onChange={(event) => props.setHisUrl(event.target.value)}
+            placeholder="https://localhost:8443"
+          />
+          <TextField
+            label="API key"
+            type="password"
+            value={props.apiKey}
+            disabled={connected || props.busy}
+            onChange={(event) => props.setApiKey(event.target.value)}
+            helperText="Ключ используется один раз и не сохраняется."
+          />
+          <Stack direction="row" gap={1} flexWrap="wrap">
+            {!connected && (
+              <Button
+                variant="contained"
+                disabled={props.busy || !props.hisUrl || !props.apiKey}
+                onClick={props.connect}
+              >
+                Подключиться
+              </Button>
+            )}
+            {props.status?.hisUrl && (
+              <Button
+                variant="outlined"
+                disabled={props.busy}
+                onClick={props.test}
+              >
+                Проверить подключение
+              </Button>
+            )}
+            {props.status?.hisUrl && (
+              <Button
+                color="error"
+                disabled={props.busy}
+                onClick={props.disconnect}
+              >
+                Отключиться
+              </Button>
+            )}
+            {props.busy && <CircularProgress size={24} />}
+          </Stack>
+        </Stack>
+      </Paper>
+      {props.status?.hisUrl && (
+        <Paper sx={{ p: 3 }}>
+          <Typography>
+            <b>HIS:</b> {props.status.hisUrl}
+          </Typography>
+          <Typography>
+            <b>FHIR:</b> {props.status.fhirVersion ?? "—"}
+          </Typography>
+          <Typography>
+            <b>Последняя проверка:</b>{" "}
+            {props.status.lastCheckedAt
+              ? new Date(props.status.lastCheckedAt).toLocaleString("ru-RU")
+              : "—"}
+          </Typography>
+        </Paper>
+      )}
+    </Stack>
+  );
+}
+function message(value: unknown) {
+  return value instanceof Error ? value.message : "Неизвестная ошибка.";
+}

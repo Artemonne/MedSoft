@@ -10,7 +10,7 @@ import { SubmissionService } from './fhir/submission-service.js';
 
 protocol.registerSchemesAsPrivileged([{ scheme: trustedProtocol, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const rendererRoot = join(__dirname, '../renderer');
   protocol.handle(trustedProtocol, (request) => {
     const url = new URL(request.url); const requested = decodeURIComponent(url.pathname === '/' ? 'index.html' : url.pathname.slice(1)); const file = resolve(rendererRoot, requested); const relation = relative(rendererRoot, file);
@@ -27,7 +27,8 @@ app.whenReady().then(() => {
   };
   const service = new ConnectionService(database, secrets);
   const requests = new FhirRequestService(service);
-  const submissions = new SubmissionService(database, service, requests);
+  const submissions = new SubmissionService(database, service, requests, secrets);
+  await submissions.initializeEncryption();
   const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
   registerIpc(ipcMain, service, requests, submissions, developmentOrigin);
   const window = new BrowserWindow({ title: 'MedSoft LIS', width: 1100, height: 720, minWidth: 760, minHeight: 560, webPreferences: { ...windowWebPreferences, preload: join(__dirname, '../preload/index.mjs') } });
