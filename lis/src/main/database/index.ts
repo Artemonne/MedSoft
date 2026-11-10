@@ -14,9 +14,23 @@ const migrations = [{ version: 1, sql: `
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   ) STRICT;
+` }, { version: 2, sql: `
+  CREATE TABLE result_submission (
+    id TEXT PRIMARY KEY, connection_id TEXT NOT NULL, service_request_id TEXT NOT NULL,
+    identifier_system TEXT NOT NULL, identifier_value TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('PENDING','UNKNOWN','COMPLETED','CONFLICT')),
+    observation_json TEXT NOT NULL, snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    UNIQUE(connection_id, service_request_id), UNIQUE(connection_id, identifier_system, identifier_value)
+  ) STRICT;
+  CREATE TABLE completed_analysis (
+    id TEXT PRIMARY KEY, connection_id TEXT NOT NULL, service_request_id TEXT NOT NULL, observation_id TEXT NOT NULL,
+    identifier_system TEXT NOT NULL, identifier_value TEXT NOT NULL, snapshot_json TEXT NOT NULL, observation_json TEXT NOT NULL,
+    effective_at TEXT NOT NULL, issued TEXT NOT NULL, confirmed_at TEXT NOT NULL,
+    UNIQUE(connection_id, service_request_id), UNIQUE(connection_id, observation_id), UNIQUE(connection_id, identifier_system, identifier_value)
+  ) STRICT;
 ` }];
 
 export interface StoredConnection { connectionId: string; hisUrl: string; encryptedRefreshToken: Uint8Array; fhirVersion: string; lastCheckedAt: string }
+export interface SubmissionRow { id: string; connectionId: string; serviceRequestId: string; identifierSystem: string; identifierValue: string; state: string; observationJson: string; snapshotJson: string }
 
 export class LisDatabase {
   private readonly db: DatabaseSync;
@@ -46,5 +60,10 @@ export class LisDatabase {
   }
   updateSecret(encrypted: Uint8Array, checkedAt: string) { this.db.prepare('UPDATE connection_config SET encrypted_refresh_token = ?, last_checked_at = ?, updated_at = ? WHERE id = 1').run(encrypted, checkedAt, checkedAt); }
   clearConnection() { this.db.prepare('DELETE FROM connection_config WHERE id = 1').run(); }
+  createSubmission(row: Omit<SubmissionRow, 'state'>) { const now = new Date().toISOString(); this.db.prepare('INSERT INTO result_submission(id,connection_id,service_request_id,identifier_system,identifier_value,state,observation_json,snapshot_json,created_at,updated_at) VALUES(?,?,?,?,?,\'PENDING\',?,?,?,?)').run(row.id,row.connectionId,row.serviceRequestId,row.identifierSystem,row.identifierValue,row.observationJson,row.snapshotJson,now,now); }
+  getSubmission(connectionId: string, requestId: string): SubmissionRow | null { const row = this.db.prepare('SELECT id,connection_id,service_request_id,identifier_system,identifier_value,state,observation_json,snapshot_json FROM result_submission WHERE connection_id=? AND service_request_id=?').get(connectionId,requestId) as any; return row ? { id: row.id, connectionId: row.connection_id, serviceRequestId: row.service_request_id, identifierSystem: row.identifier_system, identifierValue: row.identifier_value, state: row.state, observationJson: row.observation_json, snapshotJson: row.snapshot_json } : null; }
+  markSubmission(id: string, state: 'UNKNOWN'|'CONFLICT') { this.db.prepare('UPDATE result_submission SET state=?,updated_at=? WHERE id=?').run(state,new Date().toISOString(),id); }
+  completeSubmission(submission: SubmissionRow, observation: any) { const now = new Date().toISOString(); this.db.exec('BEGIN IMMEDIATE'); try { this.db.prepare('INSERT OR IGNORE INTO completed_analysis(id,connection_id,service_request_id,observation_id,identifier_system,identifier_value,snapshot_json,observation_json,effective_at,issued,confirmed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(submission.id,submission.connectionId,submission.serviceRequestId,observation.id,submission.identifierSystem,submission.identifierValue,submission.snapshotJson,JSON.stringify(observation),observation.effectiveDateTime,observation.issued,now); this.db.prepare("UPDATE result_submission SET state='COMPLETED',updated_at=? WHERE id=?").run(now,submission.id); this.db.exec('COMMIT'); } catch(error){this.db.exec('ROLLBACK'); throw error;} }
+  listHistory(connectionId?: string) { const rows = this.db.prepare(`SELECT id,service_request_id,observation_id,snapshot_json,observation_json,effective_at,issued,confirmed_at FROM completed_analysis ${connectionId ? 'WHERE connection_id=?' : ''} ORDER BY confirmed_at DESC`).all(...(connectionId ? [connectionId] : [])) as any[]; return rows.map((row)=>({ id:row.id,serviceRequestId:row.service_request_id,observationId:row.observation_id,snapshot:JSON.parse(row.snapshot_json),observation:JSON.parse(row.observation_json),effectiveAt:row.effective_at,issued:row.issued,confirmedAt:row.confirmed_at })); }
   close() { this.db.close(); }
 }

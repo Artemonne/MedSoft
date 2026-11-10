@@ -38,4 +38,12 @@ npm run package:lis
 
 Раздел «Запросы» загружает `ServiceRequest` постранично через FHIR R5, разрешает фильтрацию по `active`/`completed` и получает связанные Patient, Practitioner и Observation только в памяти main process. `Bundle.next` преобразуется в проверенный offset только после проверки HTTPS origin и FHIR path. Renderer получает подготовленные DTO через фиксированные IPC-операции и не видит FHIR URL или токены.
 
-Patient и Practitioner кэшируются только в ограниченном временем жизни процесса кэше и очищаются при отключении. Медицинские ресурсы не сохраняются в SQLite. Выполненные запросы доступны только для просмотра; ввод и POST Observation, а также постоянная история исследований относятся к следующему этапу.
+Patient и Practitioner кэшируются только в ограниченном временем жизни процесса кэше и очищаются при отключении. Необработанные назначения не сохраняются в SQLite. Выполненные запросы доступны только для просмотра.
+
+## Фиксация результатов и история
+
+ServiceRequest содержит extensions `https://medsoft.local/fhir/StructureDefinition/lab-result-kind` (`valueCode`: `TEXT` или `QUANTITY`) и `.../lab-result-unit` (`valueCoding` UCUM). Перед отправкой LIS повторно читает назначение, формирует финальный Observation и сначала транзакционно сохраняет операцию `PENDING` в SQLite. Identifier состоит из постоянного `connection_id` установки и UUID операции; `effectiveDateTime` также фиксируется до сети.
+
+POST Observation использует `If-None-Exist: identifier=system|value`. Ответы 200 и 201 проходят проверку identifier, basedOn, Patient, LOINC, effectiveDateTime и значения, после чего одной SQLite-транзакцией создаётся `completed_analysis` и submission переводится в `COMPLETED`. Сетевой неопределённый исход сохраняется как `UNKNOWN`, конфликт — как `CONFLICT`; сверка ищет Observation по исходному identifier и никогда не создаёт новый identifier для повтора.
+
+История содержит только исследования, начатые этой установкой LIS, хранит минимальные snapshots пациента, врача и назначения и доступна без HIS. Необработанные ServiceRequest по-прежнему не сохраняются. Учебная версия опирается на изоляцию пользовательского профиля Windows для файла SQLite и не реализует полное шифрование медицинских snapshots на уровне базы.

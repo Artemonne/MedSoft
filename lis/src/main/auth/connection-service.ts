@@ -57,6 +57,11 @@ export class ConnectionService {
     let token = this.accessToken ?? await this.refresh();
     try { return await request(token); } catch (error) { if (!(error instanceof HttpError) || error.status !== 401) throw error; token = await this.refresh(); return request(token); }
   }
+  async fhirPost<T>(path: string, body: unknown, ifNoneExist: string): Promise<{ status: number; body: T }> {
+    const stored = this.database.getConnection(); if (!stored || !path.startsWith('/api/fhir/r5/')) throw new Error('Подключение к HIS не настроено.');
+    const send = async (token: string) => { let response: Response; try { response = await this.fetcher(`${stored.hisUrl}${path}`, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10_000), headers: { Authorization: `Bearer ${token}`, Accept: 'application/fhir+json', 'Content-Type': 'application/fhir+json', 'If-None-Exist': ifNoneExist }, body: JSON.stringify(body) }); } catch(error) { throw new Error('Не удалось установить защищённое соединение с HIS.', { cause:error }); } const value = await response.json() as any; if (!response.ok) throw new HttpError(response.status, value.issue?.[0]?.details?.text ?? `HIS вернул HTTP ${response.status}.`); return { status: response.status, body: value as T }; };
+    let token=this.accessToken ?? await this.refresh(); try{return await send(token);}catch(error){if(!(error instanceof HttpError)||error.status!==401)throw error;token=await this.refresh();return send(token);}
+  }
   clearAccessTokenForTest() { this.accessToken = null; }
   private async verify(base: string, token: string) { const result = await this.json<{ status: string; role: string }>(`${base}/api/service-auth/test-connection`, { headers: { Authorization: `Bearer ${token}` } }); if (result.status !== 'connected' || result.role !== 'LIS') throw new Error('HIS не подтвердил роль LIS.'); }
   private async capability(base: string, token: string) {

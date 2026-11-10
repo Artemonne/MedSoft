@@ -6,6 +6,7 @@ import { ConnectionService } from './auth/connection-service.js';
 import { registerIpc } from './ipc/index.js';
 import { trustedProtocol, windowWebPreferences } from './security.js';
 import { FhirRequestService } from './fhir/request-service.js';
+import { SubmissionService } from './fhir/submission-service.js';
 
 protocol.registerSchemesAsPrivileged([{ scheme: trustedProtocol, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
@@ -26,8 +27,9 @@ app.whenReady().then(() => {
   };
   const service = new ConnectionService(database, secrets);
   const requests = new FhirRequestService(service);
+  const submissions = new SubmissionService(database, service, requests);
   const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
-  registerIpc(ipcMain, service, requests, developmentOrigin);
+  registerIpc(ipcMain, service, requests, submissions, developmentOrigin);
   const window = new BrowserWindow({ title: 'MedSoft LIS', width: 1100, height: 720, minWidth: 760, minHeight: 560, webPreferences: { ...windowWebPreferences, preload: join(__dirname, '../preload/index.mjs') } });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => { if (!isAllowed(url, developmentOrigin)) event.preventDefault(); });

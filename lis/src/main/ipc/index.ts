@@ -2,9 +2,10 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import { IPC } from '../../shared/types.js';
 import type { ConnectionService } from '../auth/connection-service.js';
 import type { FhirRequestService } from '../fhir/request-service.js';
+import type { SubmissionService } from '../fhir/submission-service.js';
 import { isTrustedSender } from '../security.js';
 
-export function registerIpc(ipcMain: Pick<IpcMain, 'handle'>, service: ConnectionService, requests: FhirRequestService, developmentOrigin?: string) {
+export function registerIpc(ipcMain: Pick<IpcMain, 'handle'>, service: ConnectionService, requests: FhirRequestService, submissions: SubmissionService, developmentOrigin?: string) {
   const secure = <T extends unknown[], R>(handler: (...args: T) => Promise<R> | R) => async (event: IpcMainInvokeEvent, ...args: T) => {
     if (!isTrustedSender(event.senderFrame?.url ?? '', developmentOrigin)) throw new Error('Недоверенный источник IPC.');
     return handler(...args);
@@ -15,4 +16,7 @@ export function registerIpc(ipcMain: Pick<IpcMain, 'handle'>, service: Connectio
   ipcMain.handle(IPC.disconnect, secure(async () => { const result = await service.disconnect(); requests.clear(); return result; }));
   ipcMain.handle(IPC.listRequests, secure((input: unknown) => requests.list(input)));
   ipcMain.handle(IPC.requestDetails, secure((id: unknown) => requests.details(id)));
+  ipcMain.handle(IPC.submitResult, secure((input: unknown) => submissions.submit(input)));
+  ipcMain.handle(IPC.reconcile, secure((id: string) => submissions.reconcile(id)));
+  ipcMain.handle(IPC.history, secure(() => submissions.listHistory()));
 }
