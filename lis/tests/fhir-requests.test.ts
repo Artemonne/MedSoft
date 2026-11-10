@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FhirRequestService } from '../src/main/fhir/request-service.js';
 const orderId = '11111111-1111-4111-8111-111111111111';
-const serviceRequest = { resourceType: 'ServiceRequest', id: orderId, status: 'active', intent: 'order', requisition: { value: 'batch-1' }, code: { concept: { coding: [{ system: 'http://loinc.org', code: '2345-7', display: 'Глюкоза' }] } }, subject: { reference: 'Patient/3' }, requester: { reference: 'Practitioner/5' }, authoredOn: '2026-11-10T10:00:00.000Z' };
+const serviceRequest = { resourceType: 'ServiceRequest', id: orderId, status: 'active', intent: 'order', requisition: { value: 'batch-1' }, extension: [{url:'https://medsoft.local/fhir/StructureDefinition/lab-result-kind',valueCode:'QUANTITY'},{url:'https://medsoft.local/fhir/StructureDefinition/lab-result-unit',valueCoding:{system:'http://unitsofmeasure.org',code:'mg/dL',display:'мг/дл'}}], code: { concept: { coding: [{ system: 'http://loinc.org', code: '2345-7', display: 'Глюкоза' }] } }, subject: { reference: 'Patient/3' }, requester: { reference: 'Practitioner/5' }, authoredOn: '2026-11-10T10:00:00.000Z' };
 const patient = { resourceType: 'Patient', id: '3', name: [{ family: 'Иванов', given: ['Иван', 'Иванович'] }], birthDate: '1990-01-01', gender: 'male' };
 const practitioner = { resourceType: 'Practitioner', id: '5', active: false, name: [{ family: 'Петрова', given: ['Анна'] }] };
 const bundle = (resources: unknown[], total = resources.length, next?: string) => ({ resourceType: 'Bundle', type: 'searchset', total, entry: resources.map((resource) => ({ resource })), link: next ? [{ relation: 'next', url: next }] : [] });
