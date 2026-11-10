@@ -3,6 +3,8 @@ import { adminAccountsRouter } from './routes/admin-accounts.js';
 import { adminDiagnosesRouter } from './routes/admin-diagnoses.js';
 import { adminAuthRouter } from './routes/admin-auth.js';
 import { adminLabTestsRouter } from './routes/admin-lab-tests.js';
+import { adminServiceAccountsRouter } from './routes/admin-service-accounts.js';
+import { serviceAuthRouter } from './routes/service-auth.js';
 import { auditRouter } from './routes/audit.js';
 import { authRouter } from './routes/auth.js';
 import { diagnosesRouter } from './routes/diagnoses.js';
@@ -24,6 +26,7 @@ app.get('/api/health', (_request, response) => {
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminAuthRouter);
 app.use('/api/admin/accounts', adminAccountsRouter);
+app.use('/api/admin/service-accounts', adminServiceAccountsRouter);
 app.use('/api/admin/diagnoses', adminDiagnosesRouter);
 app.use('/api/admin/lab-tests', adminLabTestsRouter);
 app.use('/api/admin/audit', auditRouter);
@@ -31,6 +34,7 @@ app.use('/api/medical-workers', medicalWorkersRouter);
 app.use('/api/diagnoses', diagnosesRouter);
 app.use('/api/patients', patientsRouter);
 app.use('/api/medical-records', medicalRecordsRouter);
+app.use('/api/service-auth', serviceAuthRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

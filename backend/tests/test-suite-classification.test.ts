@@ -5,6 +5,7 @@ const unitTests = [
   'health.test.ts',
   'medical-record-replay.test.ts',
   'password.test.ts',
+  'service-security.test.ts',
   'test-database-guard.test.ts',
   'test-suite-classification.test.ts',
   'totp.test.ts',
@@ -21,6 +22,7 @@ const integrationTests = [
   'medical-record.test.ts',
   'laboratory.test.ts',
   'security-model.test.ts',
+  'service-auth.test.ts',
   'worker-account-migration.test.ts',
 ];
 

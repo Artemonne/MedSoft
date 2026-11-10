@@ -14,6 +14,7 @@ export default defineConfig({
       'tests/medical-record.test.ts',
       'tests/laboratory.test.ts',
       'tests/security-model.test.ts',
+      'tests/service-auth.test.ts',
       'tests/worker-account-migration.test.ts',
     ],
     setupFiles: ['./tests/setup-integration.ts'],

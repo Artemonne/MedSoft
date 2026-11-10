@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import { adminServiceAccountController } from '../controllers/admin-service-account.js';
+import { asyncHandler } from '../lib/async-handler.js';
+import { authenticateAdminAccessToken } from '../middleware/authenticate-admin.js';
+export const adminServiceAccountsRouter = Router();
+adminServiceAccountsRouter.use(asyncHandler(authenticateAdminAccessToken));
+adminServiceAccountsRouter.get('/', asyncHandler(adminServiceAccountController.list));
+adminServiceAccountsRouter.post('/', asyncHandler(adminServiceAccountController.create));
+adminServiceAccountsRouter.get('/:id', asyncHandler(adminServiceAccountController.get));
+adminServiceAccountsRouter.patch('/:id/status', asyncHandler(adminServiceAccountController.status));
+adminServiceAccountsRouter.post('/:id/rotate-key', asyncHandler(adminServiceAccountController.rotate));

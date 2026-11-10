@@ -30,6 +30,7 @@ enum MedicalWorkerRole {
 enum AuditActorType {
   ADMIN
   USER
+  SERVICE
   ANONYMOUS
   SYSTEM
 }
@@ -43,6 +44,11 @@ enum AdministratorSetupState {
 enum RefreshSessionSubjectType {
   ADMIN
   USER
+  SERVICE
+}
+
+enum ServiceAccountRole {
+  LIS
 }
 
 enum LabResultKind {
@@ -90,6 +96,22 @@ model SystemAdministrator {
   refreshSessions RefreshSession[]
 }
 
+model ServiceAccount {
+  id              String             @id @default(uuid()) @db.Uuid
+  name            String             @unique @db.VarChar(100)
+  keyId           String             @unique @db.VarChar(32)
+  apiKeyHash      String             @db.Char(43)
+  keyVersion      Int                @default(1)
+  role            ServiceAccountRole @default(LIS)
+  isActive        Boolean            @default(true)
+  rotatedAt       DateTime            @default(now())
+  lastUsedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  refreshSessions RefreshSession[]
+  auditEvents     AuditEvent[]
+}
+
 model AuditEvent {
   id                    String               @id @default(uuid()) @db.Uuid
   occurredAt            DateTime             @default(now())
@@ -100,13 +122,16 @@ model AuditEvent {
   metadata               Json?
   accountId             String?              @db.Uuid
   systemAdministratorId Int?
+  serviceAccountId      String?              @db.Uuid
   account               Account?             @relation(fields: [accountId], references: [id], onDelete: Restrict)
   systemAdministrator   SystemAdministrator? @relation(fields: [systemAdministratorId], references: [id], onDelete: Restrict)
+  serviceAccount        ServiceAccount?      @relation(fields: [serviceAccountId], references: [id], onDelete: Restrict)
 
   @@index([occurredAt, id])
   @@index([actorType, actorIdentifier])
   @@index([accountId])
   @@index([systemAdministratorId])
+  @@index([serviceAccountId])
 }
 
 model RefreshSession {
@@ -114,6 +139,7 @@ model RefreshSession {
   subjectType           RefreshSessionSubjectType
   accountId             String?                   @db.Uuid
   systemAdministratorId Int?
+  serviceAccountId      String?                   @db.Uuid
   tokenHash             String                    @unique
   familyId              String                    @db.Uuid
   issuedAt              DateTime                  @default(now())
@@ -123,11 +149,13 @@ model RefreshSession {
   replacedById          String?                   @unique @db.Uuid
   account               Account?                  @relation(fields: [accountId], references: [id], onDelete: Cascade)
   systemAdministrator   SystemAdministrator?      @relation(fields: [systemAdministratorId], references: [id], onDelete: Cascade)
+  serviceAccount        ServiceAccount?           @relation(fields: [serviceAccountId], references: [id], onDelete: Cascade)
   replacedBy            RefreshSession?           @relation("RefreshSessionRotation", fields: [replacedById], references: [id], onDelete: SetNull)
   replaces              RefreshSession?           @relation("RefreshSessionRotation")
 
   @@index([accountId])
   @@index([systemAdministratorId])
+  @@index([serviceAccountId])
   @@index([familyId])
   @@index([revokedAt])
   @@index([expiresAt])

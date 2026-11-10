@@ -28,11 +28,18 @@ export type AuditEventType =
   | 'LAB_TEST_CREATED'
   | 'LAB_TEST_UPDATED'
   | 'LAB_TEST_ACTIVATION_CHANGED'
-  | 'LAB_TESTS_SEEDED';
+  | 'LAB_TESTS_SEEDED'
+  | 'SERVICE_ACCOUNT_CREATED'
+  | 'SERVICE_ACCOUNT_ACTIVATION_CHANGED'
+  | 'SERVICE_ACCOUNT_KEY_ROTATED'
+  | 'SERVICE_AUTH_SUCCEEDED'
+  | 'SERVICE_AUTH_FAILED'
+  | 'SERVICE_SESSIONS_REVOKED';
 
 export type AuditActor =
   | { type: 'admin'; administratorId: 1 }
   | { type: 'user'; accountId: string }
+  | { type: 'service'; serviceAccountId: string }
   | { type: 'anonymous'; requestId: string }
   | { type: 'system'; identifier: string };
 
@@ -89,6 +96,12 @@ function actorData(actor: AuditActor) {
       return {
         actorType: AuditActorType.ANONYMOUS,
         actorIdentifier: `request:${actor.requestId}`,
+      };
+    case 'service':
+      return {
+        actorType: AuditActorType.SERVICE,
+        actorIdentifier: `service:${actor.serviceAccountId}`,
+        serviceAccountId: actor.serviceAccountId,
       };
     case 'system':
       return {

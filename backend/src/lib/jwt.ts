@@ -8,13 +8,14 @@ import {
 import { UnauthorizedError } from './app-error.js';
 
 export type TokenType = 'access' | 'refresh';
-export type TokenSubjectType = 'user' | 'admin';
+export type TokenSubjectType = 'user' | 'admin' | 'service';
 
 export interface VerifiedToken {
   subjectId: string;
   subjectType: TokenSubjectType;
   sessionId: string;
   tokenType: TokenType;
+  serviceRole?: string;
 }
 
 interface TokenPairInput {
@@ -22,6 +23,7 @@ interface TokenPairInput {
   subjectType: TokenSubjectType;
   sessionId: string;
   issuedAt: Date;
+  serviceRole?: string;
 }
 
 async function signToken(
@@ -35,6 +37,7 @@ async function signToken(
     tokenType,
     subjectType: input.subjectType,
     sessionId: input.sessionId,
+    ...(input.serviceRole ? { serviceRole: input.serviceRole } : {}),
   })
     .setProtectedHeader({ alg: 'EdDSA', typ: 'JWT' })
     .setIssuer(configuration.issuer)
@@ -98,6 +101,7 @@ export async function verifyToken(
       subjectType: expectedSubjectType,
       sessionId: payload.sessionId as string,
       tokenType: expectedType,
+      ...(typeof payload.serviceRole === 'string' ? { serviceRole: payload.serviceRole } : {}),
     };
   } catch (error) {
     if (error instanceof UnauthorizedError) {
