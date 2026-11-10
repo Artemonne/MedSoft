@@ -9,6 +9,8 @@ export const medicalRecordsRouter = Router();
 
 medicalRecordsRouter.use(asyncHandler(authenticateAccessToken));
 medicalRecordsRouter.get('/:id/events', asyncHandler(medicalRecordController.getEvents));
+medicalRecordsRouter.get('/:id/lab-orders', asyncHandler(medicalRecordController.getLabOrders));
+medicalRecordsRouter.post('/:id/lab-orders', authorizeMedicalWorkerRoles(MedicalWorkerRole.DOCTOR), asyncHandler(medicalRecordController.createLabOrders));
 medicalRecordsRouter.get('/:id', asyncHandler(medicalRecordController.getById));
 medicalRecordsRouter.post(
   '/:id/unlock',

@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import { MedicalWorkerRole } from '@prisma/client';
+import { labTestController } from '../controllers/lab-test.js';
+import { asyncHandler } from '../lib/async-handler.js';
+import { authenticateAccessToken } from '../middleware/authenticate.js';
+import { authorizeMedicalWorkerRoles } from '../middleware/authorize-role.js';
+export const labTestsRouter = Router();
+labTestsRouter.use(asyncHandler(authenticateAccessToken));
+labTestsRouter.use(authorizeMedicalWorkerRoles(...Object.values(MedicalWorkerRole)));
+labTestsRouter.get('/', asyncHandler(labTestController.listActive));

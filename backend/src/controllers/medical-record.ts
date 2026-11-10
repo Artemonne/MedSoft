@@ -6,6 +6,7 @@ import {
   editPrescriptionSchema,
   emptyBodySchema,
   historicalStateQuerySchema,
+  createLabOrdersSchema,
   patientIdParamsSchema,
   recordDiagnosisParamsSchema,
   recordPrescriptionParamsSchema,
@@ -13,6 +14,7 @@ import {
 import { medicalRecordService } from '../services/medical-record.js';
 import { UnauthorizedError } from '../lib/app-error.js';
 import type { UserAuthContext } from '../types/auth.js';
+import { laboratoryService } from '../services/laboratory.js';
 
 function userContext(request: Request): UserAuthContext {
   if (request.auth?.subjectType !== 'user') {
@@ -44,6 +46,18 @@ export const medicalRecordController = {
   async getEvents(request: Request, response: Response) {
     const { id } = idParamsSchema.parse(request.params);
     response.json(await medicalRecordService.getEvents(id));
+  },
+
+  async getLabOrders(request: Request, response: Response) {
+    const { id } = idParamsSchema.parse(request.params);
+    const { at } = historicalStateQuerySchema.parse(request.query);
+    response.json(await laboratoryService.listOrders(id, at));
+  },
+
+  async createLabOrders(request: Request, response: Response) {
+    const { id } = idParamsSchema.parse(request.params);
+    const input = createLabOrdersSchema.parse(request.body);
+    response.status(201).json(await laboratoryService.createOrderBatch(userContext(request), { medicalRecordId: id, labTestIds: input.labTestIds, idempotencyKey: input.clientRequestId }));
   },
 
   async unlock(request: Request, response: Response) {

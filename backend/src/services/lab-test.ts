@@ -22,6 +22,7 @@ async function requireLabTest(id: number) {
 
 export const labTestService = {
   list() { return prisma.labTest.findMany({ orderBy: { id: 'asc' } }); },
+  listActive() { return prisma.labTest.findMany({ where: { isActive: true }, orderBy: [{ name: 'asc' }, { id: 'asc' }] }); },
   getById: requireLabTest,
   async create(data: LabTestInput) {
     return prisma.$transaction(async (transaction) => {

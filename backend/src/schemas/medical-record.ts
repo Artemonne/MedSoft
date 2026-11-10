@@ -39,6 +39,11 @@ export const historicalStateQuerySchema = z
   })
   .strict();
 
+export const createLabOrdersSchema = z.object({
+  labTestIds: z.array(z.number().int().positive()).min(1).max(50),
+  clientRequestId: z.string().uuid(),
+}).strict();
+
 export type AddDiagnosisInput = z.infer<typeof addDiagnosisSchema>;
 export type AddPrescriptionInput = z.infer<typeof addPrescriptionSchema>;
 export type EditPrescriptionInput = z.infer<typeof editPrescriptionSchema>;

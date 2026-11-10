@@ -35,7 +35,8 @@ export type AuditEventType =
   | 'SERVICE_AUTH_SUCCEEDED'
   | 'SERVICE_AUTH_FAILED'
   | 'SERVICE_SESSIONS_REVOKED'
-  | 'LAB_RESULT_CREATED';
+  | 'LAB_RESULT_CREATED'
+  | 'LAB_ORDERS_CREATED';
 
 export type AuditActor =
   | { type: 'admin'; administratorId: 1 }

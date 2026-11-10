@@ -53,12 +53,19 @@ export const laboratoryService = {
         if (existing.requestHash !== requestHash) throw new ConflictError('The idempotency key was already used for different laboratory orders.');
         return existing;
       }
-      const record = await transaction.medicalRecord.findUnique({ where: { id: input.medicalRecordId }, select: { id: true } });
+      await transaction.$queryRaw`SELECT pg_advisory_xact_lock(${input.medicalRecordId})::text`;
+      const workers = await transaction.$queryRaw<Array<{ id: number }>>(Prisma.sql`SELECT "id" FROM "MedicalWorker" WHERE "id" = ${actor.medicalWorker.id} FOR SHARE`);
+      if (workers.length !== 1) throw new NotFoundError('Medical worker');
+      const worker = await transaction.medicalWorker.findUniqueOrThrow({ where: { id: actor.medicalWorker.id } });
+      if (worker.isDeleted) throw new ConflictError('A deleted medical worker cannot modify a medical record.');
+      if (worker.role !== 'DOCTOR') throw new ForbiddenError('Only a doctor can create laboratory orders.');
+      const record = await transaction.medicalRecord.findUnique({ where: { id: input.medicalRecordId }, select: { id: true, isEditingLocked: true } });
       if (!record) throw new NotFoundError('Medical record');
+      if (record.isEditingLocked) throw new ConflictError('Medical record is locked for editing.');
       const tests = await transaction.labTest.findMany({ where: { id: { in: input.labTestIds }, isActive: true } });
       if (tests.length !== input.labTestIds.length) throw new AppError(400, 'INVALID_LAB_TEST', 'Every laboratory test must exist and be active.');
       const byId = new Map(tests.map((item) => [item.id, item]));
-      return transaction.labOrderBatch.create({
+      const batch = await transaction.labOrderBatch.create({
         data: {
           medicalRecordId: input.medicalRecordId,
           requesterId: actor.medicalWorker.id,
@@ -69,6 +76,28 @@ export const laboratoryService = {
         },
         include: batchInclude,
       });
+      await transaction.medicalRecord.update({ where: { id: input.medicalRecordId }, data: { isEditingLocked: true } });
+      await auditService.record(transaction, { eventType: 'LAB_ORDERS_CREATED', actor: { type: 'user', accountId: actor.accountId }, message: 'Laboratory orders created.', metadata: { medicalRecordId: input.medicalRecordId, labOrderBatchId: batch.id, labOrderIds: batch.orders.map((order) => order.id), editingLocked: true } });
+      return batch;
+    });
+  },
+
+  async listOrders(medicalRecordId: number, at?: Date) {
+    const record = await prisma.medicalRecord.findUnique({ where: { id: medicalRecordId }, select: { id: true } });
+    if (!record) throw new NotFoundError('Medical record');
+    const orders = await prisma.labOrder.findMany({
+      where: { batch: { medicalRecordId }, ...(at ? { orderedAt: { lte: at } } : {}) },
+      include: { batch: { include: { requester: true } }, result: true },
+      orderBy: [{ orderedAt: 'desc' }, { id: 'desc' }],
+    });
+    return orders.map((order) => {
+      const visibleResult = order.result && (!at || order.result.registeredAt <= at) ? order.result : null;
+      return {
+        id: order.id, labTestId: order.labTestId, name: order.testNameSnapshot, loincCode: order.loincCodeSnapshot,
+        orderedAt: order.orderedAt, status: visibleResult ? 'completed' as const : 'pending' as const,
+        requester: { id: order.batch.requester.id, firstName: order.batch.requester.firstName, middleName: order.batch.requester.middleName, lastName: order.batch.requester.lastName, position: order.batch.requester.position, isDeleted: order.batch.requester.isDeleted },
+        result: visibleResult ? { id: visibleResult.id, kind: visibleResult.resultKind, textValue: visibleResult.textValue, quantityValue: visibleResult.quantityValue?.toString() ?? null, unitCode: visibleResult.unitCode, unitDisplay: order.unitDisplaySnapshot, effectiveAt: visibleResult.effectiveAt, registeredAt: visibleResult.registeredAt } : null,
+      };
     });
   },
 
