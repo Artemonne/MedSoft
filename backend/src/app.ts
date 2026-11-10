@@ -5,6 +5,7 @@ import { adminAuthRouter } from './routes/admin-auth.js';
 import { adminLabTestsRouter } from './routes/admin-lab-tests.js';
 import { adminServiceAccountsRouter } from './routes/admin-service-accounts.js';
 import { serviceAuthRouter } from './routes/service-auth.js';
+import { fhirR5Router } from './routes/fhir-r5.js';
 import { auditRouter } from './routes/audit.js';
 import { authRouter } from './routes/auth.js';
 import { diagnosesRouter } from './routes/diagnoses.js';
@@ -35,6 +36,7 @@ app.use('/api/diagnoses', diagnosesRouter);
 app.use('/api/patients', patientsRouter);
 app.use('/api/medical-records', medicalRecordsRouter);
 app.use('/api/service-auth', serviceAuthRouter);
+app.use('/api/fhir/r5', fhirR5Router);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

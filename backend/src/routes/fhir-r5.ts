@@ -1,0 +1,23 @@
+import { Router } from 'express';
+import { fhirController } from '../controllers/fhir.js';
+import { FhirError, fhirErrorHandler } from '../fhir/outcome.js';
+import { asyncHandler } from '../lib/async-handler.js';
+import { authenticateServiceAccessToken, authorizeServiceOperation } from '../middleware/authenticate-service.js';
+import { requireFhirJson } from '../middleware/fhir-http.js';
+
+export const fhirR5Router = Router();
+fhirR5Router.use(requireFhirJson);
+fhirR5Router.use(asyncHandler(authenticateServiceAccessToken));
+fhirR5Router.get('/metadata', fhirController.metadata);
+fhirR5Router.get('/Patient', authorizeServiceOperation('Patient', 'read'), asyncHandler(fhirController.patients));
+fhirR5Router.get('/Patient/:id', authorizeServiceOperation('Patient', 'read'), asyncHandler(fhirController.patient));
+fhirR5Router.get('/Practitioner', authorizeServiceOperation('Practitioner', 'read'), asyncHandler(fhirController.practitioners));
+fhirR5Router.get('/Practitioner/:id', authorizeServiceOperation('Practitioner', 'read'), asyncHandler(fhirController.practitioner));
+fhirR5Router.get('/ServiceRequest', authorizeServiceOperation('ServiceRequest', 'read'), asyncHandler(fhirController.serviceRequests));
+fhirR5Router.get('/ServiceRequest/:id', authorizeServiceOperation('ServiceRequest', 'read'), asyncHandler(fhirController.serviceRequest));
+fhirR5Router.get('/Observation', authorizeServiceOperation('Observation', 'read'), asyncHandler(fhirController.observations));
+fhirR5Router.get('/Observation/:id', authorizeServiceOperation('Observation', 'read'), asyncHandler(fhirController.observation));
+fhirR5Router.post('/Patient', authorizeServiceOperation('Patient', 'create'), () => { throw new FhirError(405, 'not-supported', 'HTTP method is not supported for this resource.'); });
+fhirR5Router.all(['/Patient', '/Patient/:id', '/Practitioner', '/Practitioner/:id', '/ServiceRequest', '/ServiceRequest/:id', '/Observation', '/Observation/:id'], () => { throw new FhirError(405, 'not-supported', 'HTTP method is not supported for this resource.'); });
+fhirR5Router.use(() => { throw new FhirError(404, 'not-found', 'FHIR endpoint not found.'); });
+fhirR5Router.use(fhirErrorHandler);

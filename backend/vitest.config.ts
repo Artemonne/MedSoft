@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     include: [
       'tests/health.test.ts',
+      'tests/fhir-r5.unit.test.ts',
       'tests/medical-record-replay.test.ts',
       'tests/password.test.ts',
       'tests/service-security.test.ts',

@@ -108,6 +108,7 @@ Development backend variables, without values:
 - `ADMIN_LOGIN_MAX_ATTEMPTS`, `ADMIN_LOGIN_WINDOW_SECONDS`, `ADMIN_LOGIN_BLOCK_SECONDS`
 - `ADMIN_BOOTSTRAP_MAX_ATTEMPTS`, `ADMIN_BOOTSTRAP_WINDOW_SECONDS`, `ADMIN_BOOTSTRAP_BLOCK_SECONDS`
 - `SERVICE_AUTH_MAX_ATTEMPTS`, `SERVICE_AUTH_WINDOW_SECONDS`, `SERVICE_AUTH_BLOCK_SECONDS` (optional service API-key rate-limit overrides)
+- `FHIR_PUBLIC_BASE_URL` (trusted HTTPS base URL ending in `/api/fhir/r5`; defaults to local HTTPS development URL)
 
 Integration-only variables:
 
