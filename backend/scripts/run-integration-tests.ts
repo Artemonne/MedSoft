@@ -15,12 +15,15 @@ const environment = {
 
 await verifyTestDatabaseServer(identity, { requireMarker: false });
 
-const executable = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const migration = spawnSync(executable, ['exec', '--', 'prisma', 'migrate', 'deploy'], {
+const npmCli = process.env.npm_execpath;
+if (!npmCli) throw new Error('npm_execpath is required to run integration tests.');
+const npmCommand = [npmCli, 'exec', '--'];
+const migration = spawnSync(process.execPath, [...npmCommand, 'prisma', 'migrate', 'deploy'], {
   cwd: new URL('..', import.meta.url),
   env: environment,
   stdio: 'inherit',
 });
+if (migration.error) throw migration.error;
 if (migration.status !== 0) process.exit(migration.status ?? 1);
 
 const client = new PrismaClient({ datasourceUrl: identity.url });
@@ -47,9 +50,10 @@ try {
 
 await verifyTestDatabaseServer(identity, { requireMarker: true });
 
-const tests = spawnSync(executable, ['exec', '--', 'vitest', 'run', '--config', 'vitest.integration.config.ts'], {
-  cwd: new URL('..', import.meta.url),
-  env: environment,
-  stdio: 'inherit',
-});
+const tests = spawnSync(
+  process.execPath,
+  [...npmCommand, 'vitest', 'run', '--config', 'vitest.integration.config.ts'],
+  { cwd: new URL('..', import.meta.url), env: environment, stdio: 'inherit' },
+);
+if (tests.error) throw tests.error;
 process.exit(tests.status ?? 1);

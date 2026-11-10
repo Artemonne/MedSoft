@@ -46,6 +46,8 @@ $env:TEST_DATABASE_CONFIRMATION = 'medsoft_test/his_test_user'
 npm run test:integration
 ```
 
+On a single-user development workstation, the same two values may instead be stored as Windows user environment variables so that new terminals inherit them. Keep the URL out of Git, logs, command history, and reports. Remove or rotate the variables when the local test role is retired.
+
 The integration runner performs all of these checks before tests can change data:
 
 - requires the dedicated test variable and explicit database/user confirmation;
