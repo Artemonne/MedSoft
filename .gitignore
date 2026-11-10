@@ -27,6 +27,9 @@ dist/
 build/
 frontend/dist/
 backend/dist/
+lis/dist/
+lis/out/
+lis/release/
 
 # Vite
 .vite/
@@ -51,6 +54,8 @@ pnpm-debug.log*
 # Prisma local databases
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 
 # IDE
 .vscode/
