@@ -8,6 +8,7 @@ import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AuditPage } from './pages/AuditPage';
 import { DiagnosesPage } from './pages/DiagnosesPage';
 import { MedicalRecordPage } from './pages/MedicalRecordPage';
+import { LabTestsPage } from './pages/LabTestsPage';
 import { MedicalWorkerDetailsPage } from './pages/MedicalWorkerDetailsPage';
 import { MedicalWorkersPage } from './pages/MedicalWorkersPage';
 import { PatientDetailsPage } from './pages/PatientDetailsPage';
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="medical-workers" element={<MedicalWorkersPage />} />
         <Route path="medical-workers/:id" element={<MedicalWorkerDetailsPage />} />
         <Route path="diagnoses" element={<DiagnosesPage />} />
+        <Route path="lab-tests" element={<LabTestsPage />} />
         <Route path="accounts" element={<AccountsPage />} />
         <Route path="audit" element={<AuditPage />} />
       </Route>

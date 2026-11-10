@@ -60,6 +60,17 @@ export interface DiagnosisInput {
   name: string;
 }
 
+export type LabResultKind = 'TEXT' | 'QUANTITY';
+export interface LabTest {
+  id: number; name: string; loincCode: string; resultKind: LabResultKind;
+  unitCode: string | null; unitDisplay: string | null; methodDescription: string | null;
+  isActive: boolean; createdAt: string; updatedAt: string;
+}
+export interface LabTestInput {
+  name: string; loincCode: string; resultKind: LabResultKind;
+  unitCode: string | null; unitDisplay: string | null; methodDescription: string | null;
+}
+
 export type Sex = 'MALE' | 'FEMALE' | 'UNKNOWN';
 
 export interface Patient {
