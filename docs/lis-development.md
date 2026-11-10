@@ -36,4 +36,6 @@ npm run package:lis
 
 Администратор HIS создаёт активный сервисный аккаунт LIS и однократно передаёт API key оператору. На экране «Подключение» указываются HTTPS origin HIS и ключ. Main process последовательно вызывает token exchange, `test-connection` и FHIR R5 metadata, проверяя версию 5.0.0 и capabilities Patient/Practitioner/ServiceRequest read и Observation create.
 
-Текущий этап не загружает медицинские ресурсы, не отправляет Observation и не хранит историю исследований. Разделы «Запросы» и «История» честно обозначены как функции следующего этапа.
+Раздел «Запросы» загружает `ServiceRequest` постранично через FHIR R5, разрешает фильтрацию по `active`/`completed` и получает связанные Patient, Practitioner и Observation только в памяти main process. `Bundle.next` преобразуется в проверенный offset только после проверки HTTPS origin и FHIR path. Renderer получает подготовленные DTO через фиксированные IPC-операции и не видит FHIR URL или токены.
+
+Patient и Practitioner кэшируются только в ограниченном временем жизни процесса кэше и очищаются при отключении. Медицинские ресурсы не сохраняются в SQLite. Выполненные запросы доступны только для просмотра; ввод и POST Observation, а также постоянная история исследований относятся к следующему этапу.
