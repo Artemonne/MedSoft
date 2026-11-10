@@ -9,6 +9,7 @@ import { AuditPage } from './pages/AuditPage';
 import { DiagnosesPage } from './pages/DiagnosesPage';
 import { MedicalRecordPage } from './pages/MedicalRecordPage';
 import { LabTestsPage } from './pages/LabTestsPage';
+import { ServiceAccountsPage } from './pages/ServiceAccountsPage';
 import { MedicalWorkerDetailsPage } from './pages/MedicalWorkerDetailsPage';
 import { MedicalWorkersPage } from './pages/MedicalWorkersPage';
 import { PatientDetailsPage } from './pages/PatientDetailsPage';
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="diagnoses" element={<DiagnosesPage />} />
         <Route path="lab-tests" element={<LabTestsPage />} />
         <Route path="accounts" element={<AccountsPage />} />
+        <Route path="service-accounts" element={<ServiceAccountsPage />} />
         <Route path="audit" element={<AuditPage />} />
       </Route>
     </Route>

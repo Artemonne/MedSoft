@@ -6,12 +6,13 @@ export interface AuditEvent {
   id: string;
   occurredAt: string;
   eventType: string;
-  actorType: 'ADMIN' | 'USER' | 'ANONYMOUS' | 'SYSTEM';
+  actorType: 'ADMIN' | 'USER' | 'SERVICE' | 'ANONYMOUS' | 'SYSTEM';
   actorIdentifier: string;
   message: string;
   metadata: Record<string, unknown> | null;
   accountId: string | null;
   systemAdministratorId: number | null;
+  serviceAccountId: string | null;
 }
 
 export interface AuditHistory {

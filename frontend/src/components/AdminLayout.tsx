@@ -5,6 +5,7 @@ const links = [
   { to: '/admin/diagnoses', label: 'Диагнозы' },
   { to: '/admin/lab-tests', label: 'Лабораторные анализы' },
   { to: '/admin/accounts', label: 'Аккаунты' },
+  { to: '/admin/service-accounts', label: 'Сервисные аккаунты' },
   { to: '/admin/audit', label: 'Аудит' },
 ];
 
