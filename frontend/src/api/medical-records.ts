@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import type { MedicalRecordEvent, MedicalRecordState } from '../types';
+import type { MedicalRecordEvent, MedicalRecordLabOrder, MedicalRecordState } from '../types';
 
 interface DiagnosisInput {
   diagnosisId: number;
@@ -14,6 +14,13 @@ export const medicalRecordsApi = {
   getAt: (id: number, datetime: string) =>
     apiRequest<MedicalRecordState>(`/medical-records/${id}?at=${encodeURIComponent(datetime)}`),
   events: (id: number) => apiRequest<MedicalRecordEvent[]>(`/medical-records/${id}/events`),
+  labOrders: (id: number, at?: string) => apiRequest<MedicalRecordLabOrder[]>(
+    `/medical-records/${id}/lab-orders${at ? `?at=${encodeURIComponent(at)}` : ''}`,
+  ),
+  createLabOrders: (id: number, labTestIds: number[], clientRequestId: string) =>
+    apiRequest(`/medical-records/${id}/lab-orders`, {
+      method: 'POST', body: JSON.stringify({ labTestIds, clientRequestId }),
+    }),
   unlock: (id: number) => apiRequest<MedicalRecordState>(`/medical-records/${id}/unlock`, {
     method: 'POST', body: JSON.stringify({}),
   }),

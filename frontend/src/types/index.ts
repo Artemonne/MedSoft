@@ -71,6 +71,28 @@ export interface LabTestInput {
   unitCode: string | null; unitDisplay: string | null; methodDescription: string | null;
 }
 
+export interface MedicalRecordLabResult {
+  id: string;
+  kind: LabResultKind;
+  textValue: string | null;
+  quantityValue: string | null;
+  unitCode: string | null;
+  unitDisplay: string | null;
+  effectiveAt: string;
+  registeredAt: string;
+}
+
+export interface MedicalRecordLabOrder {
+  id: string;
+  labTestId: number;
+  name: string;
+  loincCode: string;
+  orderedAt: string;
+  status: 'pending' | 'completed';
+  requester: MedicalRecordEventWorker;
+  result: MedicalRecordLabResult | null;
+}
+
 export type Sex = 'MALE' | 'FEMALE' | 'UNKNOWN';
 
 export interface Patient {

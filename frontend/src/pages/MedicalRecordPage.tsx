@@ -2,20 +2,21 @@ import { fullName } from '../utils/full-name';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent,
+  Alert, Box, Button, Card, CardContent, Checkbox, Chip, Dialog, DialogActions, DialogContent,
   DialogTitle, Divider, FormControl, InputLabel, List, ListItem, ListItemText, MenuItem,
   Paper, Select, Stack, Tab, Tabs, TextField, Typography,
 } from '@mui/material';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError, getErrorMessage } from '../api/client';
 import { diagnosesApi } from '../api/diagnoses';
+import { activeLabTestsApi } from '../api/active-lab-tests';
 import { medicalRecordsApi } from '../api/medical-records';
 import { patientsApi } from '../api/patients';
 import { useAuth } from '../auth/AuthContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ErrorState, FeedbackSnackbar, LoadingState } from '../components/PageFeedback';
 import type {
-  MedicalRecordEvent, MedicalRecordPrescription, MedicalRecordState, Sex,
+  MedicalRecordEvent, MedicalRecordLabOrder, MedicalRecordPrescription, MedicalRecordState, Sex,
 } from '../types';
 
 const sexLabels: Record<Sex, string> = { MALE: 'Мужской', FEMALE: 'Женский', UNKNOWN: 'Не установлен' };
@@ -96,6 +97,27 @@ function EventHistory({ events }: { events: MedicalRecordEvent[] }) {
   </List>;
 }
 
+function LabOrders({ orders, canCreate, onCreate }: { orders: MedicalRecordLabOrder[]; canCreate: boolean; onCreate: () => void }) {
+  return <Card variant="outlined"><CardContent><Stack gap={2}>
+    <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Typography variant="h5">Анализы</Typography>
+      {canCreate && <Button variant="contained" onClick={onCreate}>Назначить анализы</Button>}
+    </Stack>
+    {orders.length === 0 ? <Typography color="text.secondary">Лабораторных назначений нет</Typography> : <List disablePadding>
+      {orders.map((order) => <ListItem key={order.id} divider alignItems="flex-start"><ListItemText
+        primary={<Stack direction="row" gap={1} alignItems="center" flexWrap="wrap"><Typography fontWeight={600}>{order.name}</Typography><Chip size="small" variant="outlined" label={`LOINC ${order.loincCode}`} /><Chip size="small" color={order.result ? 'success' : 'default'} label={order.result ? 'Выполнено' : 'Ожидает выполнения'} /></Stack>}
+        secondary={<Box component="span" sx={{ display: 'block', mt: 0.5 }}>
+          Назначено: {new Date(order.orderedAt).toLocaleString('ru-RU')} · {fullName(order.requester)}
+          {order.result && <Box component="span" sx={{ display: 'block', mt: 0.5, color: 'text.primary' }}>
+            Результат: {order.result.kind === 'TEXT' ? order.result.textValue : `${order.result.quantityValue} ${order.result.unitDisplay || order.result.unitCode || 'без единицы измерения'}`}
+            {' · '}зарегистрирован {new Date(order.result.registeredAt).toLocaleString('ru-RU')}
+          </Box>}
+        </Box>}
+      /></ListItem>)}
+    </List>}
+  </Stack></CardContent></Card>;
+}
+
 export function MedicalRecordPage() {
   const { identity, refreshIdentity } = useAuth();
   const role = identity?.subjectType === 'user' ? identity.medicalWorker.role : 'other';
@@ -116,6 +138,9 @@ export function MedicalRecordPage() {
   const [historyDate, setHistoryDate] = useState('');
   const [historyTime, setHistoryTime] = useState('');
   const [historicalTimestamp, setHistoricalTimestamp] = useState<string | null>(null);
+  const [labDialog, setLabDialog] = useState(false);
+  const [selectedLabTests, setSelectedLabTests] = useState<number[]>([]);
+  const [labClientRequestId, setLabClientRequestId] = useState('');
 
   const recordQuery = useQuery({ queryKey: ['medical-record', id], queryFn: () => medicalRecordsApi.get(id), enabled: validId, retry: false });
   const patientId = recordQuery.data?.patientId ?? 0;
@@ -123,11 +148,15 @@ export function MedicalRecordPage() {
   const diagnosesQuery = useQuery({ queryKey: ['diagnoses'], queryFn: diagnosesApi.list, enabled: diagnosisDialog });
   const historyQuery = useQuery({ queryKey: ['medical-record', id, 'events'], queryFn: () => medicalRecordsApi.events(id), enabled: validId && tab === 1, retry: false });
   const historicalQuery = useQuery({ queryKey: ['medical-record', id, 'historical', historicalTimestamp], queryFn: () => medicalRecordsApi.getAt(id, historicalTimestamp!), enabled: validId && Boolean(historicalTimestamp), retry: false });
+  const labOrdersQuery = useQuery({ queryKey: ['medical-record', id, 'lab-orders'], queryFn: () => medicalRecordsApi.labOrders(id), enabled: validId, retry: false });
+  const historicalLabOrdersQuery = useQuery({ queryKey: ['medical-record', id, 'lab-orders', historicalTimestamp], queryFn: () => medicalRecordsApi.labOrders(id, historicalTimestamp!), enabled: validId && Boolean(historicalTimestamp), retry: false });
+  const labTestsQuery = useQuery({ queryKey: ['active-lab-tests'], queryFn: activeLabTestsApi.list, enabled: labDialog, retry: false });
 
   const refreshRecord = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['medical-record', id], exact: true }),
       queryClient.invalidateQueries({ queryKey: ['medical-record', id, 'events'], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ['medical-record', id, 'lab-orders'], exact: true }),
     ]);
   };
   const handleMutationError = async (error: unknown) => {
@@ -172,6 +201,17 @@ export function MedicalRecordPage() {
     onSuccess: async () => { await refreshRecord(); setFeedback({ message: 'ЭМК разблокирована для редактирования.', severity: 'success' }); },
     onError: handleMutationError,
   });
+  const createLabOrders = useMutation({
+    mutationFn: () => medicalRecordsApi.createLabOrders(id, selectedLabTests, labClientRequestId),
+    onSuccess: async () => { await refreshRecord(); setLabDialog(false); setSelectedLabTests([]); setLabClientRequestId(''); setFeedback({ message: 'Анализы назначены. ЭМК снова открыта только для просмотра.', severity: 'success' }); },
+    onError: handleMutationError,
+  });
+
+  const openLabDialog = () => {
+    setSelectedLabTests([]);
+    setLabClientRequestId(crypto.randomUUID());
+    setLabDialog(true);
+  };
 
   const openPrescription = (item: MedicalRecordPrescription | null) => {
     setPrescription(item); setPrescriptionText(item?.text ?? ''); setPrescriptionError('');
@@ -217,9 +257,10 @@ export function MedicalRecordPage() {
         : <Alert severity="success">ЭМК разблокирована.{canModify ? ' Вы можете вносить изменения.' : ' Ваша роль допускает только просмотр.'}</Alert>)}
       {historicalTimestamp ? <Paper sx={{ p: 3 }}><Stack gap={2}>
         <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h5">Состояние на {new Date(historicalTimestamp).toLocaleString('ru-RU')}</Typography><Button onClick={() => setHistoricalTimestamp(null)}>Вернуться к текущему состоянию</Button></Stack>
-        {historicalQuery.isPending ? <LoadingState /> : historicalQuery.isError ? <ErrorState message={getErrorMessage(historicalQuery.error, 'medical-record')} /> : <RecordStateView state={historicalQuery.data} editable={false} />}
+        {historicalQuery.isPending || historicalLabOrdersQuery.isPending ? <LoadingState /> : historicalQuery.isError || historicalLabOrdersQuery.isError ? <ErrorState message={getErrorMessage(historicalQuery.error || historicalLabOrdersQuery.error, 'medical-record')} /> : <><RecordStateView state={historicalQuery.data} editable={false} /><LabOrders orders={historicalLabOrdersQuery.data} canCreate={false} onCreate={() => undefined} /></>}
       </Stack></Paper> : <>
         <RecordStateView state={state} editable={canModify && !state.isEditingLocked} onAddDiagnosis={() => setDiagnosisDialog(true)} onEditPrescription={openPrescription} onRemove={setRemoval} />
+        {labOrdersQuery.isPending ? <LoadingState /> : labOrdersQuery.isError ? <Alert severity="error" action={<Button color="inherit" onClick={() => labOrdersQuery.refetch()}>Повторить</Button>}>{getErrorMessage(labOrdersQuery.error, 'medical-record')}</Alert> : <LabOrders orders={labOrdersQuery.data} canCreate={role === 'doctor' && !state.isEditingLocked} onCreate={openLabDialog} />}
         <Paper sx={{ p: 3 }}><Stack gap={2}><Typography variant="h5">Состояние ЭМК на дату и время</Typography><Stack direction={{ xs: 'column', sm: 'row' }} gap={2} alignItems={{ sm: 'flex-start' }}>
           <TextField label="Дата" type="date" value={historyDate} onChange={(event) => setHistoryDate(event.target.value)} InputLabelProps={{ shrink: true }} />
           <TextField label="Время" type="time" value={historyTime} onChange={(event) => setHistoryTime(event.target.value)} InputLabelProps={{ shrink: true }} />
@@ -236,6 +277,10 @@ export function MedicalRecordPage() {
     </DialogContent><DialogActions><Button onClick={() => setDiagnosisDialog(false)} disabled={addDiagnosis.isPending}>Отмена</Button><Button variant="contained" disabled={!diagnosisId || addDiagnosis.isPending} onClick={() => addDiagnosis.mutate()}>Добавить</Button></DialogActions></Dialog>
 
     <Dialog open={prescription !== undefined} onClose={() => !savePrescription.isPending && setPrescription(undefined)} fullWidth maxWidth="sm"><DialogTitle>{prescription ? 'Редактировать назначение' : 'Добавить назначение'}</DialogTitle><DialogContent><TextField autoFocus fullWidth multiline minRows={3} sx={{ mt: 1 }} label="Текст назначения" value={prescriptionText} onChange={(event) => setPrescriptionText(event.target.value)} error={Boolean(prescriptionError)} helperText={prescriptionError || `${prescriptionText.trim().length}/128`} /></DialogContent><DialogActions><Button onClick={() => setPrescription(undefined)} disabled={savePrescription.isPending}>Отмена</Button><Button variant="contained" onClick={submitPrescription} disabled={savePrescription.isPending}>Сохранить</Button></DialogActions></Dialog>
+
+    <Dialog open={labDialog} onClose={() => !createLabOrders.isPending && setLabDialog(false)} fullWidth maxWidth="sm"><DialogTitle>Назначить анализы</DialogTitle><DialogContent>
+      {labTestsQuery.isPending ? <LoadingState /> : labTestsQuery.isError ? <Alert severity="error" action={<Button color="inherit" onClick={() => labTestsQuery.refetch()}>Повторить</Button>}>Не удалось загрузить справочник анализов.</Alert> : labTestsQuery.data.length === 0 ? <Alert severity="info">Нет доступных анализов.</Alert> : <><Typography sx={{ mb: 1 }}>Выбрано: {selectedLabTests.length}</Typography><List disablePadding>{labTestsQuery.data.map((test) => <ListItem key={test.id} disablePadding><Button fullWidth sx={{ justifyContent: 'flex-start', textAlign: 'left' }} color="inherit" onClick={() => setSelectedLabTests((current) => current.includes(test.id) ? current.filter((id) => id !== test.id) : [...current, test.id])}><Checkbox checked={selectedLabTests.includes(test.id)} />{test.name} · LOINC {test.loincCode}</Button></ListItem>)}</List></>}
+    </DialogContent><DialogActions><Button onClick={() => setLabDialog(false)} disabled={createLabOrders.isPending}>Отмена</Button><Button variant="contained" onClick={() => createLabOrders.mutate()} disabled={selectedLabTests.length === 0 || createLabOrders.isPending}>Назначить</Button></DialogActions></Dialog>
 
     <ConfirmDialog open={Boolean(removal)} title={removal?.kind === 'diagnosis' ? 'Удалить диагноз?' : 'Отменить назначение?'} message={removal?.label ?? ''} confirmLabel={removal?.kind === 'diagnosis' ? 'Удалить' : 'Отменить назначение'} pending={removeItem.isPending} onCancel={() => setRemoval(null)} onConfirm={() => removal && removeItem.mutate(removal)} />
     <FeedbackSnackbar message={feedback?.message ?? null} severity={feedback?.severity} onClose={() => setFeedback(null)} />

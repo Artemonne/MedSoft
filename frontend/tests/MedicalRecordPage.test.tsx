@@ -13,17 +13,25 @@ const record = {
 };
 const patient = { id: 3, firstName: 'Иван', lastName: 'Иванов', middleName: null, birthDate: '1990-01-01T00:00:00.000Z', sex: 'MALE', comment: null, createdAt: '', updatedAt: '' };
 const diagnosis = { id: 12, code: 'A00.01', name: 'Холера', createdAt: '', updatedAt: '' };
+const labTest = { id: 21, name: 'Глюкоза', loincCode: '2345-7', resultKind: 'QUANTITY', unitCode: 'mg/dL', unitDisplay: 'мг/дл', methodDescription: null, isActive: true, createdAt: '', updatedAt: '' };
+const labOrder = { id: '22222222-2222-4222-8222-222222222222', labTestId: 21, name: 'Глюкоза', loincCode: '2345-7', orderedAt: '2026-10-02T08:00:00.000Z', status: 'completed', requester: { id: 5, firstName: 'Анна', middleName: null, lastName: 'Петрова', position: 'Врач', isDeleted: false }, result: { id: '33333333-3333-4333-8333-333333333333', kind: 'QUANTITY', textValue: null, quantityValue: '5.600000', unitCode: 'mg/dL', unitDisplay: 'мг/дл', effectiveAt: '2026-10-02T09:00:00.000Z', registeredAt: '2026-10-02T09:05:00.000Z' } };
 
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-function mockApi(state = record, events: unknown[] = []) {
+function mockApi(state = record, events: unknown[] = [], labTests: unknown[] = [labTest], labOrders: unknown[] = [labOrder]) {
   let currentState = state;
   return vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
     const url = String(input); const method = init?.method ?? 'GET';
     if (url.endsWith('/patients/3')) return Promise.resolve(jsonResponse(patient));
     if (url.endsWith('/diagnoses')) return Promise.resolve(jsonResponse([diagnosis]));
+    if (url.endsWith('/lab-tests')) return Promise.resolve(jsonResponse(labTests));
+    if (method === 'POST' && url.endsWith('/lab-orders')) {
+      currentState = { ...currentState, isEditingLocked: true };
+      return Promise.resolve(jsonResponse({ id: 'batch', orders: [labOrder] }, 201));
+    }
+    if (url.includes('/lab-orders')) return Promise.resolve(jsonResponse(labOrders));
     if (url.endsWith('/unlock')) {
       currentState = { ...currentState, isEditingLocked: false };
       return Promise.resolve(jsonResponse(currentState));
@@ -55,6 +63,48 @@ describe('MedicalRecordPage authorization-aware UI', () => {
     mockApi(); renderPage();
     expect(await screen.findByText('J00.01 — Острый назофарингит')).toBeInTheDocument();
     expect(screen.getByText('Принимать препарат два раза в день')).toBeInTheDocument();
+    expect(await screen.findByText('Глюкоза')).toBeInTheDocument();
+    expect(screen.getByText(/5.600000 мг\/дл/)).toBeInTheDocument();
+  });
+
+  it('creates selected laboratory orders with one stable client request id and relocks the record', async () => {
+    const fetchMock = mockApi(); renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Назначить анализы' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Глюкоза/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Назначить' }));
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith('/lab-orders') && init?.method === 'POST');
+      const body = JSON.parse(String(call?.[1]?.body));
+      expect(body.labTestIds).toEqual([21]);
+      expect(body.clientRequestId).toMatch(/^[0-9a-f-]{36}$/);
+    });
+    expect(await screen.findByText(/Анализы назначены/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Назначить анализы' })).not.toBeInTheDocument();
+  });
+
+  it('supports multiple selection, deselection and blocks an empty submission', async () => {
+    const second = { ...labTest, id: 22, name: 'Гемоглобин', loincCode: '718-7' };
+    mockApi(record, [], [labTest, second], []); renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Назначить анализы' }));
+    const submit = screen.getByRole('button', { name: 'Назначить' });
+    expect(submit).toBeDisabled();
+    fireEvent.click(await screen.findByRole('button', { name: /Глюкоза/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Гемоглобин/ }));
+    expect(screen.getByText('Выбрано: 2')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Глюкоза/ }));
+    expect(screen.getByText('Выбрано: 1')).toBeInTheDocument();
+    expect(submit).toBeEnabled();
+  });
+
+  it('shows the laboratory empty state', async () => {
+    mockApi(record, [], [labTest], []); renderPage();
+    expect(await screen.findByText('Лабораторных назначений нет')).toBeInTheDocument();
+  });
+
+  it.each(['nurse', 'laboratory-technician', 'other'] as const)('does not offer laboratory creation to the %s role', async (role) => {
+    mockApi(); renderPage(role);
+    await screen.findByText('Глюкоза');
+    expect(screen.queryByRole('button', { name: 'Назначить анализы' })).not.toBeInTheDocument();
   });
 
   it('preserves event history and reconstruction at a selected date and time', async () => {
@@ -132,6 +182,7 @@ describe('MedicalRecordPage authorization-aware UI', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       const url = String(input); const method = init?.method ?? 'GET';
       if (url.endsWith('/patients/3')) return Promise.resolve(jsonResponse(patient));
+      if (url.includes('/lab-orders')) return Promise.resolve(jsonResponse([]));
       if (url.endsWith('/api/auth/me')) return Promise.resolve(jsonResponse({
         id: '11111111-1111-4111-8111-111111111111', username: 'worker', isActive: true,
         medicalWorker: { middleName: null, id: 5, firstName: 'Анна', lastName: 'Петрова', position: 'Врач', role: 'other' },
@@ -160,6 +211,7 @@ describe('MedicalRecordPage authorization-aware UI', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       const url = String(input); const method = init?.method ?? 'GET';
       if (url.endsWith('/patients/3')) return Promise.resolve(jsonResponse(patient));
+      if (url.includes('/lab-orders')) return Promise.resolve(jsonResponse([]));
       if (method === 'GET' && url.endsWith('/diagnoses')) return Promise.resolve(jsonResponse([diagnosis]));
       if (method === 'POST' && url.endsWith('/diagnoses')) {
         return Promise.resolve(jsonResponse({ error: { code: 'UNAUTHORIZED' } }, 401));
