@@ -4,6 +4,7 @@ import { connectionInputSchema } from '../configuration/validation.js';
 
 interface SecretStorage { available(): Promise<boolean>; encrypt(value: string): Promise<Uint8Array>; decrypt(value: Uint8Array): Promise<string> }
 interface TokenResponse { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number }
+class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 
 export class ConnectionService {
   private accessToken: string | null = null;
@@ -49,6 +50,14 @@ export class ConnectionService {
     if (stored) { try { const token = this.accessToken ?? await this.refresh(); await this.fetcher(`${stored.hisUrl}/api/service-auth/logout`, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10_000), headers: { Authorization: `Bearer ${token}` } }); } catch { /* local disconnect must still complete */ } }
     this.accessToken = null; this.database.clearConnection(); return this.status();
   }
+  async fhirGet<T>(path: string): Promise<T> {
+    const stored = this.database.getConnection(); if (!stored) throw new Error('Подключение к HIS не настроено.');
+    if (!path.startsWith('/api/fhir/r5/') || path.includes('://')) throw new Error('Недопустимый FHIR путь.');
+    const request = (token: string) => this.json<T>(`${stored.hisUrl}${path}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/fhir+json' } }, true);
+    let token = this.accessToken ?? await this.refresh();
+    try { return await request(token); } catch (error) { if (!(error instanceof HttpError) || error.status !== 401) throw error; token = await this.refresh(); return request(token); }
+  }
+  clearAccessTokenForTest() { this.accessToken = null; }
   private async verify(base: string, token: string) { const result = await this.json<{ status: string; role: string }>(`${base}/api/service-auth/test-connection`, { headers: { Authorization: `Bearer ${token}` } }); if (result.status !== 'connected' || result.role !== 'LIS') throw new Error('HIS не подтвердил роль LIS.'); }
   private async capability(base: string, token: string) {
     const value = await this.json<any>(`${base}/api/fhir/r5/metadata`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/fhir+json' } }, true);
@@ -61,7 +70,7 @@ export class ConnectionService {
   private async json<T>(url: string, init: RequestInit, fhir = false): Promise<T> {
     let response: Response; try { response = await this.fetcher(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(10_000) }); } catch (error) { throw new Error('Не удалось установить защищённое соединение с HIS.', { cause: error }); }
     const contentType = response.headers.get('content-type') ?? '';
-    if (!response.ok) { let message = `HIS вернул HTTP ${response.status}.`; try { const body = await response.json() as any; message = body.error?.message ?? body.issue?.[0]?.details?.text ?? message; } catch {} throw new Error(message); }
+    if (!response.ok) { let message = `HIS вернул HTTP ${response.status}.`; try { const body = await response.json() as any; message = body.error?.message ?? body.issue?.[0]?.details?.text ?? message; } catch {} throw new HttpError(response.status, message); }
     if (!(fhir ? contentType.includes('application/fhir+json') || contentType.includes('application/json') : contentType.includes('application/json'))) throw new Error('HIS вернул неожиданный Content-Type.');
     return await response.json() as T;
   }
