@@ -18,6 +18,7 @@ export default defineConfig({
       'tests/security-model.test.ts',
       'tests/service-auth.test.ts',
       'tests/worker-account-migration.test.ts',
+      'tests/live-his-lis-e2e.test.ts',
     ],
     setupFiles: ['./tests/setup-integration.ts'],
   },

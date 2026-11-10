@@ -43,3 +43,13 @@ HIS (React, Express, Prisma, PostgreSQL) и MedSoft LIS (Electron, React, SQLite
 - Почему локальная история? Она обеспечивает просмотр завершённых исследований без HIS, но не копирует все необработанные назначения.
 - Как исключены дубли? LIS фиксирует identifier до сети и применяет conditional create; HIS транзакционно обеспечивает уникальность результата для ServiceRequest.
 - Что при неизвестном исходе? Identifier не меняется: сначала выполняется поиск Observation, затем безопасный повтор conditional POST.
+
+## Автоматический HTTPS E2E
+
+`npm run test:integration` также запускает воспроизводимый backend ↔ LIS main-process сценарий. Нужны `TEST_DATABASE_URL` и `TEST_DATABASE_CONFIRMATION`, описанные в `docs/development-and-testing.md`. Runner самостоятельно проверяет выделенную test-базу и непривилегированного пользователя, применяет только committed migrations и добавляет проектный CA через `NODE_EXTRA_CA_CERTS` только дочернему тестовому процессу.
+
+Сценарий поднимает настоящий HTTPS HIS с TLS 1.3 на случайном локальном порту, получает SERVICE access/refresh-токены через HTTP, читает FHIR R5 Patient, Practitioner и ServiceRequest и отправляет TEXT/QUANTITY Observation через реальные LIS main-process services. Дополнительно проверяются conditional retry с HTTP 200, отсутствие второго LabResult, потеря ответа с переходом `UNKNOWN`, сверка, локальная история после повторного открытия SQLite и отсутствие медицинского plaintext в файле тестовой базы.
+
+SQLite и сервер создаются во временных каталогах и удаляются после теста. Рабочий `%APPDATA%/MedSoft LIS` не используется. В Node-сценарии граница secure storage реализована временным AES-GCM test adapter: он проверяет контракт ciphertext и хранение, но не подменяет ручную проверку Windows DPAPI. Фактическая доступность Electron `safeStorage` проверяется запуском packaged-приложения в отдельном временном `user-data-dir`.
+
+Это не GUI E2E: renderer и действия мышью не автоматизированы. Перед защитой вручную показать подключение packaged LIS, список запросов, карточку, результат, историю и восстановление `UNKNOWN`.

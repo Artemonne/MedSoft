@@ -24,6 +24,7 @@ const integrationTests = [
   'fhir-observation-create.test.ts',
   'medical-record.test.ts',
   'laboratory.test.ts',
+  'live-his-lis-e2e.test.ts',
   'security-model.test.ts',
   'service-auth.test.ts',
   'worker-account-migration.test.ts',

@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import {
   TEST_GUARD_ID,
@@ -11,6 +12,7 @@ const environment = {
   ...process.env,
   DATABASE_URL: identity.url,
   NODE_ENV: 'test',
+  NODE_EXTRA_CA_CERTS: fileURLToPath(new URL('../../certificates/local/ca.cert.pem', import.meta.url)),
 };
 
 await verifyTestDatabaseServer(identity, { requireMarker: false });
