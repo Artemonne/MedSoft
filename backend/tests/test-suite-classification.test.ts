@@ -21,6 +21,7 @@ const integrationTests = [
   'authorization.test.ts',
   'core-crud.test.ts',
   'fhir-r5.test.ts',
+  'fhir-observation-create.test.ts',
   'medical-record.test.ts',
   'laboratory.test.ts',
   'security-model.test.ts',

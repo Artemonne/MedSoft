@@ -4,5 +4,5 @@ export function capabilityStatement() { return { resourceType: 'CapabilityStatem
   { type: 'Patient', interaction: interactions, searchParam: [{ name: '_id', type: 'token' }] },
   { type: 'Practitioner', interaction: interactions, searchParam: [{ name: '_id', type: 'token' }] },
   { type: 'ServiceRequest', interaction: interactions, searchParam: [{ name: '_id', type: 'token' }, { name: 'patient', type: 'reference' }, { name: 'status', type: 'token' }] },
-  { type: 'Observation', interaction: interactions, searchParam: [{ name: '_id', type: 'token' }, { name: 'patient', type: 'reference' }, { name: 'based-on', type: 'reference' }] },
+  { type: 'Observation', interaction: [...interactions, { code: 'create' }], conditionalCreate: true, searchParam: [{ name: '_id', type: 'token' }, { name: 'patient', type: 'reference' }, { name: 'based-on', type: 'reference' }, { name: 'identifier', type: 'token' }] },
 ] }] }; }

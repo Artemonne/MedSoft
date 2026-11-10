@@ -34,7 +34,8 @@ export type AuditEventType =
   | 'SERVICE_ACCOUNT_KEY_ROTATED'
   | 'SERVICE_AUTH_SUCCEEDED'
   | 'SERVICE_AUTH_FAILED'
-  | 'SERVICE_SESSIONS_REVOKED';
+  | 'SERVICE_SESSIONS_REVOKED'
+  | 'LAB_RESULT_CREATED';
 
 export type AuditActor =
   | { type: 'admin'; administratorId: 1 }

@@ -17,7 +17,7 @@ import { assignRequestContext } from './middleware/request-context.js';
 
 export const app = express();
 
-app.use(express.json());
+app.use(express.json({ type: ['application/json', 'application/fhir+json'], limit: '100kb' }));
 app.use(assignRequestContext);
 
 app.get('/api/health', (_request, response) => {

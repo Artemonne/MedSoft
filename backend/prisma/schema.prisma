@@ -110,6 +110,7 @@ model ServiceAccount {
   updatedAt       DateTime            @updatedAt
   refreshSessions RefreshSession[]
   auditEvents     AuditEvent[]
+  labResults      LabResult[]
 }
 
 model AuditEvent {
@@ -252,9 +253,15 @@ model LabResult {
   unitCode      String?       @db.VarChar(32)
   effectiveAt   DateTime
   registeredAt  DateTime      @default(now())
+  identifierSystem String?     @db.VarChar(255)
+  identifierValue  String?     @db.VarChar(128)
+  createdByServiceAccountId String? @db.Uuid
   labOrder      LabOrder      @relation(fields: [labOrderId], references: [id], onDelete: Restrict)
+  createdByServiceAccount ServiceAccount? @relation(fields: [createdByServiceAccountId], references: [id], onDelete: Restrict)
 
+  @@unique([identifierSystem, identifierValue])
   @@index([registeredAt])
+  @@index([createdByServiceAccountId])
 }
 
 model MedicalRecordEvent {

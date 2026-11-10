@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../lib/app-error.js';
+import { operationOutcome } from '../fhir/outcome.js';
 
 export const notFoundHandler: RequestHandler = (_request, response) => {
   response.status(404).json({
@@ -12,7 +13,14 @@ export const notFoundHandler: RequestHandler = (_request, response) => {
   });
 };
 
-export const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
+export const errorHandler: ErrorRequestHandler = (error, request, response, _next) => {
+  if (request.originalUrl.startsWith('/api/fhir/r5')) {
+    const tooLarge = typeof error === 'object' && error !== null && 'type' in error && error.type === 'entity.too.large';
+    const invalidJson = error instanceof SyntaxError && 'body' in error;
+    const status = tooLarge ? 413 : invalidJson ? 400 : 500;
+    response.status(status).type('application/fhir+json').json(operationOutcome(tooLarge ? 'too-costly' : invalidJson ? 'invalid' : 'exception', tooLarge ? 'FHIR request body is too large.' : invalidJson ? 'Request body contains invalid JSON.' : 'An internal server error occurred.'));
+    return;
+  }
   if (error instanceof ZodError) {
     response.status(400).json({
       error: {

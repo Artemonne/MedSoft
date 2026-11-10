@@ -6,7 +6,7 @@ const common = new Set(['_count', '_offset', '_id']);
 const allowed: Record<FhirResourceType, Set<string>> = {
   Patient: common, Practitioner: common,
   ServiceRequest: new Set([...common, 'patient', 'status']),
-  Observation: new Set([...common, 'patient', 'based-on']),
+  Observation: new Set([...common, 'patient', 'based-on', 'identifier']),
 };
 function single(query: Request['query'], name: string): string | undefined { const value = query[name]; if (value === undefined) return undefined; if (typeof value !== 'string' || !value) throw new FhirError(400, 'invalid', `Invalid ${name} search parameter.`); return value; }
 function positiveInt(value: string, name: string, minimum: number, maximum: number) { if (!/^\d+$/.test(value)) throw new FhirError(400, 'invalid', `Invalid ${name} search parameter.`); const parsed = Number(value); if (parsed < minimum || parsed > maximum) throw new FhirError(400, 'invalid', `${name} must be between ${minimum} and ${maximum}.`); return parsed; }
@@ -19,6 +19,7 @@ export function parseFhirSearch(request: Request, resourceType: FhirResourceType
   const patient = single(request.query, 'patient'); if (patient) result.patientId = patientReference(patient);
   const status = single(request.query, 'status'); if (status) { if (status !== 'active' && status !== 'completed') throw new FhirError(400, 'invalid', 'ServiceRequest status must be active or completed.'); result.status = status; }
   const basedOn = single(request.query, 'based-on'); if (basedOn) result.basedOn = requireUuid(basedOn.startsWith('ServiceRequest/') ? basedOn.slice(15) : basedOn);
+  const identifier = single(request.query, 'identifier'); if (identifier) { const separator = identifier.indexOf('|'); if (separator <= 0 || separator !== identifier.lastIndexOf('|') || separator === identifier.length - 1) throw new FhirError(400, 'invalid', 'Identifier search requires an exact system|value token.'); result.identifierSystem = identifier.slice(0, separator); result.identifierValue = identifier.slice(separator + 1); }
   return result;
 }
 export function requireIntegerId(value: string) { return positiveInt(value, 'id', 1, Number.MAX_SAFE_INTEGER); }

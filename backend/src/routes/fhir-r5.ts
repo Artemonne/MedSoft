@@ -17,6 +17,7 @@ fhirR5Router.get('/ServiceRequest', authorizeServiceOperation('ServiceRequest', 
 fhirR5Router.get('/ServiceRequest/:id', authorizeServiceOperation('ServiceRequest', 'read'), asyncHandler(fhirController.serviceRequest));
 fhirR5Router.get('/Observation', authorizeServiceOperation('Observation', 'read'), asyncHandler(fhirController.observations));
 fhirR5Router.get('/Observation/:id', authorizeServiceOperation('Observation', 'read'), asyncHandler(fhirController.observation));
+fhirR5Router.post('/Observation', authorizeServiceOperation('Observation', 'create'), asyncHandler(fhirController.createObservation));
 fhirR5Router.post('/Patient', authorizeServiceOperation('Patient', 'create'), () => { throw new FhirError(405, 'not-supported', 'HTTP method is not supported for this resource.'); });
 fhirR5Router.all(['/Patient', '/Patient/:id', '/Practitioner', '/Practitioner/:id', '/ServiceRequest', '/ServiceRequest/:id', '/Observation', '/Observation/:id'], () => { throw new FhirError(405, 'not-supported', 'HTTP method is not supported for this resource.'); });
 fhirR5Router.use(() => { throw new FhirError(404, 'not-found', 'FHIR endpoint not found.'); });
