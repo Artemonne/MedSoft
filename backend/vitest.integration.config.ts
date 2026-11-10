@@ -12,6 +12,7 @@ export default defineConfig({
       'tests/authorization.test.ts',
       'tests/core-crud.test.ts',
       'tests/medical-record.test.ts',
+      'tests/laboratory.test.ts',
       'tests/security-model.test.ts',
       'tests/worker-account-migration.test.ts',
     ],

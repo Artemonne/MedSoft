@@ -19,6 +19,7 @@ const integrationTests = [
   'authorization.test.ts',
   'core-crud.test.ts',
   'medical-record.test.ts',
+  'laboratory.test.ts',
   'security-model.test.ts',
   'worker-account-migration.test.ts',
 ];

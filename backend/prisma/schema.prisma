@@ -45,6 +45,11 @@ enum RefreshSessionSubjectType {
   USER
 }
 
+enum LabResultKind {
+  TEXT
+  QUANTITY
+}
+
 model MedicalWorker {
   id        Int                  @id @default(autoincrement())
   firstName String               @db.VarChar(24)
@@ -57,6 +62,7 @@ model MedicalWorker {
   updatedAt DateTime             @updatedAt
   account   Account?
   events    MedicalRecordEvent[]
+  labOrderBatches LabOrderBatch[]
 }
 
 model Account {
@@ -70,6 +76,7 @@ model Account {
   medicalWorker   MedicalWorker?   @relation(fields: [medicalWorkerId], references: [id], onDelete: SetNull)
   auditEvents     AuditEvent[]
   refreshSessions RefreshSession[]
+  labOrderBatches LabOrderBatch[]
 }
 
 model SystemAdministrator {
@@ -154,6 +161,72 @@ model MedicalRecord {
   createdAt       DateTime             @default(now())
   patient         Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
   events          MedicalRecordEvent[]
+  labOrderBatches LabOrderBatch[]
+}
+
+model LabTest {
+  id                Int           @id @default(autoincrement())
+  name              String        @db.VarChar(160)
+  loincCode         String        @unique @db.VarChar(16)
+  resultKind        LabResultKind
+  unitCode          String?       @db.VarChar(32)
+  unitDisplay       String?       @db.VarChar(64)
+  methodDescription String?       @db.VarChar(160)
+  isActive          Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  orders            LabOrder[]
+}
+
+model LabOrderBatch {
+  id                 String        @id @default(uuid()) @db.Uuid
+  medicalRecordId    Int
+  requesterId        Int
+  createdByAccountId String        @db.Uuid
+  idempotencyKey     String        @db.Uuid
+  requestHash        String        @db.Char(64)
+  createdAt          DateTime      @default(now())
+  medicalRecord      MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Restrict)
+  requester          MedicalWorker @relation(fields: [requesterId], references: [id], onDelete: Restrict)
+  createdByAccount   Account       @relation(fields: [createdByAccountId], references: [id], onDelete: Restrict)
+  orders             LabOrder[]
+
+  @@unique([createdByAccountId, idempotencyKey])
+  @@index([medicalRecordId])
+  @@index([requesterId])
+}
+
+model LabOrder {
+  id                        String        @id @default(uuid()) @db.Uuid
+  batchId                   String        @db.Uuid
+  labTestId                 Int
+  testNameSnapshot          String        @db.VarChar(160)
+  loincCodeSnapshot         String        @db.VarChar(16)
+  resultKindSnapshot        LabResultKind
+  unitCodeSnapshot          String?       @db.VarChar(32)
+  unitDisplaySnapshot       String?       @db.VarChar(64)
+  methodDescriptionSnapshot String?       @db.VarChar(160)
+  orderedAt                 DateTime      @default(now())
+  batch                     LabOrderBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  labTest                   LabTest       @relation(fields: [labTestId], references: [id], onDelete: Restrict)
+  result                    LabResult?
+
+  @@index([batchId])
+  @@index([labTestId])
+}
+
+model LabResult {
+  id            String        @id @default(uuid()) @db.Uuid
+  labOrderId    String        @unique @db.Uuid
+  resultKind    LabResultKind
+  textValue     String?       @db.Text
+  quantityValue Decimal?      @db.Decimal(18, 6)
+  unitCode      String?       @db.VarChar(32)
+  effectiveAt   DateTime
+  registeredAt  DateTime      @default(now())
+  labOrder      LabOrder      @relation(fields: [labOrderId], references: [id], onDelete: Restrict)
+
+  @@index([registeredAt])
 }
 
 model MedicalRecordEvent {
