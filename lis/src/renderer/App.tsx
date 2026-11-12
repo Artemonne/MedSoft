@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   AppBar,
@@ -134,6 +134,7 @@ function RequestsPage({ configured }: { configured: boolean }) {
   const [details, setDetails] = useState<LabRequestDetails | null>(null);
   const [pending, setPending] = useState<PendingSubmission[]>([]);
   const [checking, setChecking] = useState<string | null>(null);
+  const automaticLoadKey = useRef<string | null>(null);
   const loadPending = async () => {
     try {
       setPending(await window.lis.listPendingSubmissions());
@@ -166,6 +167,12 @@ function RequestsPage({ configured }: { configured: boolean }) {
       setLoading(false);
     }
   };
+  useEffect(() => {
+    const key = configured ? filter : null;
+    if (!key || automaticLoadKey.current === key) return;
+    automaticLoadKey.current = key;
+    void load(0);
+  }, [configured, filter]);
   const changeFilter = (value: RequestFilter) => {
     setFilter(value);
     setItems([]);
