@@ -25,7 +25,8 @@ app.whenReady().then(async () => {
     encrypt: (value: string) => safeStorage.encryptStringAsync(value),
     decrypt: async (value: Uint8Array) => (await safeStorage.decryptStringAsync(Buffer.from(value))).result,
   };
-  const service = new ConnectionService(database, secrets);
+  const service = new ConnectionService(database, secrets, (input, init) =>
+    net.fetch(input instanceof URL ? input.toString() : input, init));
   const requests = new FhirRequestService(service);
   const submissions = new SubmissionService(database, service, requests, secrets);
   await submissions.initializeEncryption();
