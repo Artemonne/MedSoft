@@ -510,6 +510,7 @@ function HistoryPage({ connected }: { connected: boolean }) {
                 <TableCell>Назначил</TableCell>
                 <TableCell>Результат</TableCell>
                 <TableCell>Получен HIS</TableCell>
+                <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
@@ -526,10 +527,10 @@ function HistoryPage({ connected }: { connected: boolean }) {
                   <TableCell>{item.patientName}</TableCell>
                   <TableCell>{item.practitionerName}</TableCell>
                   <TableCell>{item.resultDisplay}</TableCell>
-                  <TableCell><Button onClick={() => open(item.id)}>Подробнее</Button></TableCell>
                   <TableCell>
                     {new Date(item.issued).toLocaleString("ru-RU")}
                   </TableCell>
+                  <TableCell><Button onClick={() => open(item.id)}>Подробнее</Button></TableCell>
                 </TableRow>
               ))}
             </TableBody>
