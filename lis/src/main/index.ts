@@ -31,7 +31,7 @@ app.whenReady().then(async () => {
   await submissions.initializeEncryption();
   const developmentOrigin = process.env.ELECTRON_RENDERER_URL;
   registerIpc(ipcMain, service, requests, submissions, developmentOrigin);
-  const window = new BrowserWindow({ title: 'MedSoft LIS', width: 1100, height: 720, minWidth: 760, minHeight: 560, webPreferences: { ...windowWebPreferences, preload: join(__dirname, '../preload/index.mjs') } });
+  const window = new BrowserWindow({ title: 'MedSoft LIS', width: 1100, height: 720, minWidth: 760, minHeight: 560, webPreferences: { ...windowWebPreferences, preload: join(__dirname, '../preload/index.cjs') } });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => { if (!isAllowed(url, developmentOrigin)) event.preventDefault(); });
   if (developmentOrigin) void window.loadURL(developmentOrigin); else void window.loadURL(`${trustedProtocol}://renderer/index.html`);
