@@ -1,4 +1,4 @@
-const DEFAULT_BASE_URL = 'https://localhost:3000/api/fhir/r5';
+const DEFAULT_BASE_URL = 'https://localhost:3001/api/fhir/r5';
 export function fhirBaseUrl(): string {
   const raw = process.env.FHIR_PUBLIC_BASE_URL ?? DEFAULT_BASE_URL;
   const url = new URL(raw);

@@ -3,6 +3,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
+import { legacyHashServiceApiSecret, parseServiceApiKey } from '../src/lib/service-api-key.js';
 import { auditService } from '../src/services/audit.js';
 import { serviceAccountService } from '../src/services/service-account.js';
 import { bearer, createAuthorizationFixture, type TestUserIdentity } from './helpers/auth-fixture.js';
@@ -25,6 +26,15 @@ describe('service account administration and token lifecycle', () => {
   it('exchanges a valid key, rejects an invalid key and tests connection', async () => {
     const created = await create(); const tokens = await exchange(created.body.apiKey); expect(tokens.body).toMatchObject({ tokenType: 'Bearer' });
     await exchange(created.body.apiKey.slice(0, -1) + 'x', 401); await request(app).get('/api/service-auth/test-connection').set(bearer(tokens.body.accessToken)).expect(200).expect({ status: 'connected', role: 'LIS' });
+  });
+  it('upgrades a matching legacy API-key hash without changing the issued key', async () => {
+    const created = await create(); const parsed = parseServiceApiKey(created.body.apiKey)!;
+    await prisma.serviceAccount.update({ where: { id: created.body.account.id }, data: { apiKeyHash: legacyHashServiceApiSecret(parsed.secret) } });
+    const responses = await Promise.all([exchange(created.body.apiKey), exchange(created.body.apiKey)]);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    const upgraded = await prisma.serviceAccount.findUniqueOrThrow({ where: { id: created.body.account.id } });
+    expect(upgraded.apiKeyHash).toMatch(/^scrypt\$32768\$8\$1\$/);
+    await exchange(created.body.apiKey);
   });
   it('rotates refresh tokens and revokes a replayed family', async () => {
     const created = await create(); const initial = (await exchange(created.body.apiKey)).body; const rotated = await request(app).post('/api/service-auth/refresh').send({ refreshToken: initial.refreshToken }).expect(200); expect(rotated.body.refreshToken).not.toBe(initial.refreshToken);

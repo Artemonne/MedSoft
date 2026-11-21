@@ -4,7 +4,8 @@ import { UnauthorizedError } from '../lib/app-error.js';
 import { AttemptLimiter } from '../lib/attempt-limiter.js';
 import { hashRefreshToken, issueTokenPair, verifyToken } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
-import { parseServiceApiKey, serviceApiHashMatches } from '../lib/service-api-key.js';
+import { parseServiceApiKey, verifyServiceApiSecret } from '../lib/service-api-key.js';
+import { hashSecret } from '../lib/secret-kdf.js';
 import { lockServiceAccount } from '../lib/service-account-sessions.js';
 import type { ServiceAuthContext } from '../types/auth.js';
 import { auditService } from './audit.js';
@@ -19,18 +20,24 @@ export const serviceAuthService = {
   async exchangeApiKey(apiKey: string, requestId: string) {
     limiter.assertAllowed(); const parsed = parseServiceApiKey(apiKey);
     const account = parsed ? await prisma.serviceAccount.findUnique({ where: { keyId: parsed.keyId } }) : null;
-    if (!parsed || !account || !account.isActive || !serviceApiHashMatches(account.apiKeyHash, parsed.secret)) {
+    const verification = parsed && account && account.isActive ? await verifyServiceApiSecret(account.apiKeyHash, parsed.secret) : null;
+    if (!parsed || !account || !verification?.matches) {
       limiter.recordFailure(); await failed(requestId); throw new UnauthorizedError('Invalid service credentials.');
     }
+    const upgradedHash = verification.needsUpgrade ? await hashSecret(parsed.secret) : null;
     const issuedAt = new Date(); const sessionId = randomUUID(); const familyId = randomUUID();
     const tokens = await issueTokenPair({ subjectId: account.id, subjectType: 'service', serviceRole: account.role, sessionId, issuedAt });
     try {
       await prisma.$transaction(async (transaction) => {
         if (!(await lockServiceAccount(transaction, account.id))) throw new UnauthorizedError('Invalid service credentials.');
         const current = await transaction.serviceAccount.findUniqueOrThrow({ where: { id: account.id } });
-        if (!current.isActive || current.keyId !== account.keyId || current.apiKeyHash !== account.apiKeyHash) throw new UnauthorizedError('Invalid service credentials.');
+        if (!current.isActive || current.keyId !== account.keyId) throw new UnauthorizedError('Invalid service credentials.');
+        if (current.apiKeyHash !== account.apiKeyHash) {
+          const currentVerification = await verifyServiceApiSecret(current.apiKeyHash, parsed.secret);
+          if (!currentVerification.matches || currentVerification.needsUpgrade) throw new UnauthorizedError('Invalid service credentials.');
+        }
         await transaction.refreshSession.create({ data: { id: sessionId, subjectType: RefreshSessionSubjectType.SERVICE, serviceAccountId: account.id, tokenHash: hashRefreshToken(tokens.refreshToken), familyId, issuedAt, expiresAt: tokens.refreshTokenExpiresAt } });
-        await transaction.serviceAccount.update({ where: { id: account.id }, data: { lastUsedAt: issuedAt } });
+        await transaction.serviceAccount.update({ where: { id: account.id }, data: { lastUsedAt: issuedAt, ...(upgradedHash && current.apiKeyHash === account.apiKeyHash ? { apiKeyHash: upgradedHash } : {}) } });
         await auditService.record(transaction, { eventType: 'SERVICE_AUTH_SUCCEEDED', actor: { type: 'service', serviceAccountId: account.id }, message: 'Service authentication succeeded.', metadata: { role: account.role } });
       });
     } catch (error) { if (error instanceof UnauthorizedError) { limiter.recordFailure(); await failed(requestId); } throw error; }

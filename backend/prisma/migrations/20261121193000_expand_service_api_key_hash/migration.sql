@@ -1,0 +1,2 @@
+ALTER TABLE "ServiceAccount"
+ALTER COLUMN "apiKeyHash" TYPE VARCHAR(128);

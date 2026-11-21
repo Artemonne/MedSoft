@@ -13,7 +13,7 @@ export const serviceAccountService = {
   async list() { return (await prisma.serviceAccount.findMany({ select: publicSelect, orderBy: { createdAt: 'asc' } })).map(publicAccount); },
   async getById(id: string) { const item = await prisma.serviceAccount.findUnique({ where: { id }, select: publicSelect }); if (!item) throw new NotFoundError('Service account'); return publicAccount(item); },
   async create(input: CreateServiceAccountInput, administratorId: 1) {
-    const key = generateServiceApiKey();
+    const key = await generateServiceApiKey();
     const account = await prisma.$transaction(async (transaction) => {
       const created = await transaction.serviceAccount.create({ data: { name: input.name, role: ServiceAccountRole.LIS, keyId: key.keyId, apiKeyHash: key.apiKeyHash }, select: publicSelect });
       await auditService.record(transaction, { eventType: 'SERVICE_ACCOUNT_CREATED', actor: { type: 'admin', administratorId }, message: `Service account ${created.id} created.`, metadata: { serviceAccountId: created.id, role: created.role } });
@@ -22,7 +22,7 @@ export const serviceAccountService = {
     return { account: publicAccount(account), apiKey: key.apiKey };
   },
   async setActive(id: string, isActive: boolean, administratorId: 1) {
-    const hiddenKey = !isActive ? generateServiceApiKey() : null; const at = new Date();
+    const hiddenKey = !isActive ? await generateServiceApiKey() : null; const at = new Date();
     return prisma.$transaction(async (transaction) => {
       if (!(await lockServiceAccount(transaction, id))) throw new NotFoundError('Service account');
       const current = await transaction.serviceAccount.findUniqueOrThrow({ where: { id } });
@@ -33,7 +33,7 @@ export const serviceAccountService = {
     });
   },
   async rotateKey(id: string, administratorId: 1) {
-    const key = generateServiceApiKey(); const at = new Date();
+    const key = await generateServiceApiKey(); const at = new Date();
     const result = await prisma.$transaction(async (transaction) => {
       if (!(await lockServiceAccount(transaction, id))) throw new NotFoundError('Service account');
       const revoked = await revokeServiceSessions(transaction, id, 'api-key-rotated', at);
