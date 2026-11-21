@@ -37,7 +37,7 @@ HTTP и MLLP остаются отдельными транспортными а
 
 1. `POST /api/service-auth/token` — обмен API key на access/refresh pair;
 2. `POST /api/service-auth/refresh` — ротация refresh token;
-3. `GET /api/testConnection` — проверка access token и роли;
+3. `GET /api/testConnection` — общая проверка валидного access token;
 4. передача `ADT^A28^ADT_A05` через защищённый MLLP listener.
 
 Любые HIS CRUD и FHIR endpoints, старый LIS endpoint
@@ -48,7 +48,9 @@ HTTP и MLLP остаются отдельными транспортными а
 ротации API key.
 
 `GET /api/testConnection` требует `Authorization: Bearer <access-token>` и
-возвращает:
+доступен всем активным аутентифицированным субъектам: администратору,
+медицинскому работнику, LIS и HL7 Import. Он не предоставляет дополнительных
+предметных разрешений и возвращает:
 
 ```json
 {
@@ -57,7 +59,9 @@ HTTP и MLLP остаются отдельными транспортными а
 }
 ```
 
-Endpoint `/api/service-auth/test-connection` и его контракт для LIS не меняются.
+Поле `role` содержит `ADMIN`, роль медицинского работника либо роль сервисного
+аккаунта. Endpoint `/api/service-auth/test-connection` и его контракт остаются
+доступными только LIS.
 
 ### 3.2 Создание сервисного аккаунта
 

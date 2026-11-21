@@ -15,6 +15,7 @@ import { patientsRouter } from './routes/patients.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { medicalRecordsRouter } from './routes/medical-records.js';
 import { assignRequestContext } from './middleware/request-context.js';
+import { testConnectionRouter } from './routes/test-connection.js';
 
 export const app = express();
 
@@ -24,6 +25,7 @@ app.use(assignRequestContext);
 app.get('/api/health', (_request, response) => {
   response.json({ status: 'ok' });
 });
+app.use('/api/testConnection', testConnectionRouter);
 
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminAuthRouter);

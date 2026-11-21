@@ -103,3 +103,67 @@ Get-Content certificates/verify-certificates.ps1
 До завершения XML adapter требуется обезличенный XML-пример преподавателя и, при
 наличии, XSD. Остальные этапы могут использовать зафиксированный внутренний DTO
 и HL7 fixtures, не выдавая предполагаемую XML-структуру за настоящий контракт.
+
+## 2026-11-21 — этап №2: безопасная основа HL7 Import
+
+Статус: реализация завершена, MLLP listener и HL7 import не начинались.
+
+### Реализовано
+
+- добавлена роль `HL7_IMPORT` в Prisma, service JWT exchange/refresh и
+  административный интерфейс;
+- сохранён default-deny: роль не получила FHIR, HIS CRUD, admin, LIS test или
+  service logout permissions;
+- добавлен общий `GET /api/testConnection` для активных user/admin/service
+  access tokens;
+- в `Patient` добавлены nullable source/value внешнего ID, composite unique
+  index и CHECK полноты пары;
+- добавлен безопасный loader конфигурации отдельного MLLP TLS-порта: TLS 1.3,
+  обязательный доверенный client certificate, без изменения HTTPS API;
+- добавлены OpenSSL clientAuth profile, воспроизводимый PowerShell script и
+  инструкция `docs/lab4/CERTIFICATES.md`;
+- server certificate предыдущих этапов переиспользуется: его EKU `serverAuth`
+  и SAN подходят для локальных `localhost`/`127.0.0.1`.
+
+### Граница этапа
+
+Конфигурация MLLP mTLS подготовлена, но listener не запускается и HL7 payload не
+принимается. Parser, UAC, ACK, атомарный импорт и audit certificate identity
+остаются этапом №3.
+
+### Проверки
+
+Выполнены:
+
+```powershell
+npm run prisma:generate
+npm run prisma:validate
+npm run typecheck --workspace backend
+npm run typecheck --workspace frontend
+npm run test:unit --workspace backend
+npm run test --workspace frontend -- ServiceAccountsPage
+npm run certs:verify
+npm run build --workspace backend
+npm run build --workspace frontend
+git diff --check
+```
+
+Результаты:
+
+- Prisma schema valid, client успешно сгенерирован;
+- backend unit: 9 files, 39 tests passed;
+- frontend targeted: 1 file, 2 tests passed;
+- backend/frontend typecheck и build прошли;
+- CA/server certificate chain, serverAuth и SAN проверки прошли;
+- PowerShell client certificate script разобран без syntax errors;
+- OpenSSL client profile сформировал валидный CSR с clientAuth extensions;
+- `git diff --check` не обнаружил whitespace errors;
+- Vite сохранил существующее предупреждение о chunk больше 500 kB; build не
+  завершился ошибкой.
+
+Для проверки migration и database constraints автоматически создана отдельная
+временная PostgreSQL database `medsoft_lab4_test` с non-superuser ролью
+`his_lab4_test_user`. Выполнены `prisma migrate deploy` и только
+`tests/service-auth.test.ts`: все 12 migrations применены, 1 test file и 14 tests
+passed. После проверки временные database и role удалены; development database
+`medsoft` не изменялась.

@@ -49,6 +49,7 @@ enum RefreshSessionSubjectType {
 
 enum ServiceAccountRole {
   LIS
+  HL7_IMPORT
 }
 
 enum LabResultKind {
@@ -171,16 +172,20 @@ model Diagnosis {
 }
 
 model Patient {
-  id            Int            @id @default(autoincrement())
-  firstName     String         @db.VarChar(50)
-  lastName      String         @db.VarChar(50)
-  middleName    String?        @db.VarChar(50)
-  birthDate     DateTime       @db.Date
-  sex           Sex            @default(UNKNOWN)
-  comment       String?        @db.VarChar(32)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  medicalRecord MedicalRecord?
+  id               Int            @id @default(autoincrement())
+  firstName        String         @db.VarChar(50)
+  lastName         String         @db.VarChar(50)
+  middleName       String?        @db.VarChar(50)
+  birthDate        DateTime       @db.Date
+  sex              Sex            @default(UNKNOWN)
+  comment          String?        @db.VarChar(32)
+  externalIdSource String?        @db.VarChar(100)
+  externalIdValue  String?        @db.VarChar(100)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  medicalRecord    MedicalRecord?
+
+  @@unique([externalIdSource, externalIdValue])
 }
 
 model MedicalRecord {

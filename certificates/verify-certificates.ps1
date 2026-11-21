@@ -58,4 +58,14 @@ if (($caSubject -replace '^subject=', '') -ne ($serverIssuer -replace '^issuer='
 Invoke-OpenSsl @('x509', '-in', $serverCertificate, '-noout', '-checkhost', 'localhost') | Out-Null
 Invoke-OpenSsl @('x509', '-in', $serverCertificate, '-noout', '-checkip', '127.0.0.1') | Out-Null
 
+$clientCertificates = @(Get-ChildItem -Path (Join-Path $certificateDirectory 'clients') -Filter 'client.cert.pem' -File -Recurse -ErrorAction SilentlyContinue)
+foreach ($clientCertificate in $clientCertificates) {
+  $clientVerification = Invoke-OpenSsl @('verify', '-purpose', 'sslclient', '-CAfile', $caCertificate, $clientCertificate.FullName)
+  Assert-Matches $clientVerification ': OK$' "Client CA signature for $($clientCertificate.FullName)"
+  $clientDetails = Invoke-OpenSsl @('x509', '-in', $clientCertificate.FullName, '-noout', '-subject', '-issuer', '-text', '-nameopt', 'RFC2253')
+  Assert-Matches $clientDetails 'CN=[^\r\n]+' "Client common name for $($clientCertificate.FullName)"
+  Assert-Matches $clientDetails 'CA:FALSE' "Client basic constraints for $($clientCertificate.FullName)"
+  Assert-Matches $clientDetails 'TLS Web Client Authentication' "Client extended key usage for $($clientCertificate.FullName)"
+}
+
 Write-Output 'Certificate chain, identity, extensions, and SAN checks passed.'

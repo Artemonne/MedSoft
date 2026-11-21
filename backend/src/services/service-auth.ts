@@ -11,6 +11,9 @@ import type { ServiceAuthContext } from '../types/auth.js';
 import { auditService } from './audit.js';
 
 const limiter = new AttemptLimiter('SERVICE_AUTH', 10);
+function isServiceAccountRole(value: string | undefined): value is ServiceAccountRole {
+  return value !== undefined && Object.values(ServiceAccountRole).includes(value as ServiceAccountRole);
+}
 function hashesMatch(first: string, second: string) { const a = Buffer.from(first); const b = Buffer.from(second); return a.length === b.length && timingSafeEqual(a, b); }
 async function revokeFamily(transaction: Prisma.TransactionClient, familyId: string, reason: string, at: Date) { await transaction.refreshSession.updateMany({ where: { familyId, revokedAt: null }, data: { revokedAt: at, revocationReason: reason } }); }
 function tokenResponse(tokens: Awaited<ReturnType<typeof issueTokenPair>>) { return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, tokenType: 'Bearer' as const, expiresIn: tokens.accessTokenTtlSeconds }; }
@@ -46,7 +49,7 @@ export const serviceAuthService = {
 
   async refresh(refreshToken: string) {
     const claims = await verifyToken(refreshToken, 'refresh', 'service');
-    if (claims.serviceRole !== ServiceAccountRole.LIS) throw new UnauthorizedError('Invalid service refresh token.');
+    if (!isServiceAccountRole(claims.serviceRole)) throw new UnauthorizedError('Invalid service refresh token.');
     const replacementId = randomUUID(); const issuedAt = new Date();
     const tokens = await issueTokenPair({ subjectId: claims.subjectId, subjectType: 'service', serviceRole: claims.serviceRole, sessionId: replacementId, issuedAt });
     const presentedHash = hashRefreshToken(refreshToken);
@@ -68,7 +71,7 @@ export const serviceAuthService = {
 
   async authenticateAccessToken(token: string): Promise<ServiceAuthContext> {
     const claims = await verifyToken(token, 'access', 'service');
-    if (claims.serviceRole !== ServiceAccountRole.LIS) throw new UnauthorizedError('Invalid service token.');
+    if (!isServiceAccountRole(claims.serviceRole)) throw new UnauthorizedError('Invalid service token.');
     const session = await prisma.refreshSession.findUnique({ where: { id: claims.sessionId }, include: { serviceAccount: true } });
     if (!session || session.subjectType !== RefreshSessionSubjectType.SERVICE || session.serviceAccountId !== claims.subjectId || session.revokedAt || session.expiresAt <= new Date() || !session.serviceAccount?.isActive || session.serviceAccount.role !== claims.serviceRole) throw new UnauthorizedError('Service session is not active.');
     return { subjectType: 'service', serviceAccountId: claims.subjectId, role: session.serviceAccount.role, sessionId: session.id };

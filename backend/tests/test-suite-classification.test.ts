@@ -5,6 +5,7 @@ const unitTests = [
   'health.test.ts',
   'fhir-r5.unit.test.ts',
   'medical-record-replay.test.ts',
+  'mllp-tls-config.test.ts',
   'password.test.ts',
   'service-security.test.ts',
   'test-database-guard.test.ts',

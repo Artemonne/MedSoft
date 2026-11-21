@@ -67,7 +67,8 @@ npm run test --workspace frontend -- ServiceAccountsPage
    значений `ServiceAccountRole`; сохранить проверку роли в session/account.
 2. Оставить `/api/service-auth/test-connection` доступным только LIS.
 3. Добавить root route `GET /api/testConnection`, который использует
-   существующую Bearer-аутентификацию и разрешает только `HL7_IMPORT`.
+   существующую Bearer-аутентификацию и доступен всем активным user, admin и
+   service access tokens без выдачи дополнительных предметных прав.
 4. Расширить permission model явными capabilities, чтобы роль HL7 Import не
    получила FHIR permissions при добавлении enum.
 5. Не разрешать HL7 Import обычный `/logout` или предметные HTTP endpoints.

@@ -20,6 +20,7 @@
     "test:integration": "npm run test:integration --workspace backend",
     "check": "npm run prisma:validate && npm run prisma:generate && npm run typecheck && npm run test:unit && npm run build",
     "certs:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-certificates.ps1",
+    "certs:generate-client": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-client-certificate.ps1",
     "certs:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/verify-certificates.ps1",
     "jwt:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-jwt-keys.ps1",
     "admin-bootstrap:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-admin-bootstrap-secret.ps1",

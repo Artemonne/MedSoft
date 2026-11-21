@@ -15,7 +15,7 @@ export const serviceAccountService = {
   async create(input: CreateServiceAccountInput, administratorId: 1) {
     const key = await generateServiceApiKey();
     const account = await prisma.$transaction(async (transaction) => {
-      const created = await transaction.serviceAccount.create({ data: { name: input.name, role: ServiceAccountRole.LIS, keyId: key.keyId, apiKeyHash: key.apiKeyHash }, select: publicSelect });
+      const created = await transaction.serviceAccount.create({ data: { name: input.name, role: input.role ?? ServiceAccountRole.LIS, keyId: key.keyId, apiKeyHash: key.apiKeyHash }, select: publicSelect });
       await auditService.record(transaction, { eventType: 'SERVICE_ACCOUNT_CREATED', actor: { type: 'admin', administratorId }, message: `Service account ${created.id} created.`, metadata: { serviceAccountId: created.id, role: created.role } });
       return created;
     });

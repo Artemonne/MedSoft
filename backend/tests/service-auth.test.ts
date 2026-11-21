@@ -1,4 +1,4 @@
-import { MedicalWorkerRole, RefreshSessionSubjectType } from '@prisma/client';
+import { MedicalWorkerRole, RefreshSessionSubjectType, ServiceAccountRole } from '@prisma/client';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
@@ -14,7 +14,7 @@ describe('service account administration and token lifecycle', () => {
   beforeEach(async () => { await prisma.refreshSession.deleteMany({ where: { serviceAccountId: { not: null } } }); await prisma.auditEvent.deleteMany({ where: { serviceAccountId: { not: null } } }); await prisma.auditEvent.deleteMany({ where: { eventType: 'SERVICE_AUTH_FAILED' } }); await prisma.serviceAccount.deleteMany(); });
   afterAll(async () => { await prisma.refreshSession.deleteMany({ where: { serviceAccountId: { not: null } } }); await prisma.auditEvent.deleteMany({ where: { serviceAccountId: { not: null } } }); await prisma.serviceAccount.deleteMany(); await fixture.cleanup(); await prisma.$disconnect(); });
   const admin = () => bearer(fixture.adminAccessToken!);
-  const create = (name = 'Test LIS') => request(app).post('/api/admin/service-accounts').set(admin()).send({ name }).expect(201);
+  const create = (name = 'Test LIS', role?: ServiceAccountRole) => request(app).post('/api/admin/service-accounts').set(admin()).send({ name, ...(role ? { role } : {}) }).expect(201);
   const exchange = (apiKey: string, status = 200) => request(app).post('/api/service-auth/token').send({ apiKey }).expect(status);
 
   it('creates an isolated account and returns its API key only once', async () => {
@@ -26,6 +26,27 @@ describe('service account administration and token lifecycle', () => {
   it('exchanges a valid key, rejects an invalid key and tests connection', async () => {
     const created = await create(); const tokens = await exchange(created.body.apiKey); expect(tokens.body).toMatchObject({ tokenType: 'Bearer' });
     await exchange(created.body.apiKey.slice(0, -1) + 'x', 401); await request(app).get('/api/service-auth/test-connection').set(bearer(tokens.body.accessToken)).expect(200).expect({ status: 'connected', role: 'LIS' });
+  });
+  it('authenticates and refreshes an HL7 Import account with default-deny permissions', async () => {
+    const created = await create('Patient Import', ServiceAccountRole.HL7_IMPORT);
+    expect(created.body.account.role).toBe('HL7_IMPORT');
+    const initial = (await exchange(created.body.apiKey)).body;
+    await request(app).get('/api/testConnection').set(bearer(initial.accessToken)).expect(200).expect({ status: 'connected', role: 'HL7_IMPORT' });
+    const rotated = await request(app).post('/api/service-auth/refresh').send({ refreshToken: initial.refreshToken }).expect(200);
+    await request(app).get('/api/testConnection').set(bearer(rotated.body.accessToken)).expect(200).expect({ status: 'connected', role: 'HL7_IMPORT' });
+    await request(app).get('/api/service-auth/test-connection').set(bearer(rotated.body.accessToken)).expect(403);
+    await request(app).post('/api/service-auth/logout').set(bearer(rotated.body.accessToken)).expect(403);
+    await request(app).get('/api/fhir/r5/Patient').set(bearer(rotated.body.accessToken)).expect(403);
+    await request(app).get('/api/patients').set(bearer(rotated.body.accessToken)).expect(401);
+    await request(app).get('/api/admin/accounts').set(bearer(rotated.body.accessToken)).expect(401);
+  });
+  it('makes the common testConnection endpoint available to every authenticated subject type', async () => {
+    const created = await create();
+    const service = (await exchange(created.body.apiKey)).body;
+    await request(app).get('/api/testConnection').set(bearer(service.accessToken)).expect(200).expect({ status: 'connected', role: 'LIS' });
+    await request(app).get('/api/testConnection').set(bearer(user.accessToken)).expect(200).expect({ status: 'connected', role: 'DOCTOR' });
+    await request(app).get('/api/testConnection').set(admin()).expect(200).expect({ status: 'connected', role: 'ADMIN' });
+    await request(app).get('/api/testConnection').expect(401);
   });
   it('upgrades a matching legacy API-key hash without changing the issued key', async () => {
     const created = await create(); const parsed = parseServiceApiKey(created.body.apiKey)!;
@@ -57,6 +78,19 @@ describe('service account administration and token lifecycle', () => {
   });
   it('enforces exactly one typed refresh-session owner in PostgreSQL', async () => {
     const created = await create(); await exchange(created.body.apiKey); const session = await prisma.refreshSession.findFirstOrThrow({ where: { serviceAccountId: created.body.account.id } }); expect(session.subjectType).toBe(RefreshSessionSubjectType.SERVICE); expect(session.accountId).toBeNull(); expect(session.systemAdministratorId).toBeNull(); await expect(prisma.refreshSession.create({ data: { subjectType: 'SERVICE', serviceAccountId: created.body.account.id, accountId: user.accountId, tokenHash: `invalid-${Date.now()}`, familyId: crypto.randomUUID(), expiresAt: new Date(Date.now() + 10000) } })).rejects.toThrow();
+  });
+  it('enforces external patient identity completeness and uniqueness in PostgreSQL', async () => {
+    const source = `test-source-${crypto.randomUUID()}`;
+    const value = `external-${crypto.randomUUID()}`;
+    const patient = { firstName: 'Test', lastName: 'Patient', birthDate: new Date('2000-01-01T00:00:00.000Z'), externalIdSource: source, externalIdValue: value };
+    try {
+      await prisma.patient.create({ data: patient });
+      await expect(prisma.patient.create({ data: patient })).rejects.toMatchObject({ code: 'P2002' });
+      await expect(prisma.patient.create({ data: { ...patient, externalIdValue: null } })).rejects.toThrow();
+      expect(await prisma.patient.findUnique({ where: { externalIdSource_externalIdValue: { externalIdSource: source, externalIdValue: value } } })).not.toBeNull();
+    } finally {
+      await prisma.patient.deleteMany({ where: { externalIdSource: source } });
+    }
   });
   it('audits without secrets and rolls back when audit persistence fails', async () => {
     const created = await create('Audited LIS'); await exchange(created.body.apiKey); const events = await prisma.auditEvent.findMany({ where: { OR: [{ serviceAccountId: created.body.account.id }, { eventType: 'SERVICE_ACCOUNT_CREATED' }] } }); const serialized = JSON.stringify(events); expect(serialized).not.toContain(created.body.apiKey); expect(serialized).not.toContain('apiKeyHash'); expect(events.some((event) => event.eventType === 'SERVICE_ACCOUNT_CREATED' && event.actorType === 'ADMIN')).toBe(true); expect(events.some((event) => event.eventType === 'SERVICE_AUTH_SUCCEEDED' && event.actorType === 'SERVICE')).toBe(true);
