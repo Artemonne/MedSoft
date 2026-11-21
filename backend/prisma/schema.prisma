@@ -112,6 +112,7 @@ model ServiceAccount {
   refreshSessions RefreshSession[]
   auditEvents     AuditEvent[]
   labResults      LabResult[]
+  medicalRecordEvents MedicalRecordEvent[]
 }
 
 model AuditEvent {
@@ -166,7 +167,7 @@ model RefreshSession {
 model Diagnosis {
   id        Int      @id @default(autoincrement())
   code      String   @unique @db.Char(6)
-  name      String   @unique @db.VarChar(24)
+  name      String   @unique @db.VarChar(160)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -270,16 +271,19 @@ model LabResult {
 }
 
 model MedicalRecordEvent {
-  id              Int                    @id @default(autoincrement())
-  medicalRecordId Int
-  version         Int
-  workerId        Int
-  type            MedicalRecordEventType
-  payload         Json
-  createdAt       DateTime               @default(now())
-  medicalRecord   MedicalRecord          @relation(fields: [medicalRecordId], references: [id], onDelete: Restrict)
-  worker          MedicalWorker          @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  id               Int                    @id @default(autoincrement())
+  medicalRecordId  Int
+  version          Int
+  workerId         Int?
+  serviceAccountId String?                @db.Uuid
+  type             MedicalRecordEventType
+  payload          Json
+  createdAt        DateTime               @default(now())
+  medicalRecord    MedicalRecord          @relation(fields: [medicalRecordId], references: [id], onDelete: Restrict)
+  worker           MedicalWorker?         @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  serviceAccount   ServiceAccount?        @relation(fields: [serviceAccountId], references: [id], onDelete: Restrict)
 
   @@unique([medicalRecordId, version])
   @@index([workerId])
+  @@index([serviceAccountId])
 }

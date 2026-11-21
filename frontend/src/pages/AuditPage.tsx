@@ -17,6 +17,18 @@ function mergeNewest(current: AuditEvent[], incoming: AuditEvent[]): AuditEvent[
     right.occurredAt.localeCompare(left.occurredAt) || right.id.localeCompare(left.id));
 }
 
+function CertificateDetails({ metadata }: { metadata: Record<string, unknown> | null }) {
+  const certificate = metadata?.certificate;
+  if (!certificate || typeof certificate !== 'object' || Array.isArray(certificate)) return null;
+  const value = certificate as Record<string, unknown>;
+  return <Stack component="span" gap={0.25} sx={{ mt: 0.5 }}>
+    <Typography component="span" variant="caption">Сертификат: {String(value.subject ?? '—')}</Typography>
+    <Typography component="span" variant="caption">Issuer: {String(value.issuer ?? '—')}</Typography>
+    <Typography component="span" variant="caption">Serial: {String(value.serialNumber ?? '—')}</Typography>
+    <Typography component="span" variant="caption" sx={{ overflowWrap: 'anywhere' }}>SHA-256: {String(value.fingerprintSha256 ?? '—')}</Typography>
+  </Stack>;
+}
+
 export function AuditPage() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -87,7 +99,7 @@ export function AuditPage() {
           <TableCell>{event.eventType}</TableCell>
           <TableCell><Chip size="small" label={`${event.actorType}: ${event.actorIdentifier}`} /></TableCell>
           <TableCell>{event.message}</TableCell>
-          <TableCell><Typography component="code" variant="caption" sx={{ overflowWrap: 'anywhere' }}>{event.metadata ? JSON.stringify(event.metadata) : '—'}</Typography></TableCell>
+          <TableCell><Typography component="code" variant="caption" sx={{ overflowWrap: 'anywhere' }}>{event.metadata ? JSON.stringify(event.metadata) : '—'}</Typography><CertificateDetails metadata={event.metadata} /></TableCell>
         </TableRow>)}</TableBody>
       </Table></TableContainer>
       {nextCursor && <Button variant="outlined" onClick={() => void loadMore()} disabled={loadingMore} sx={{ alignSelf: 'center' }}>{loadingMore ? 'Загрузка…' : 'Показать более ранние'}</Button>}

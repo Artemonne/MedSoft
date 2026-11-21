@@ -36,7 +36,9 @@ export type AuditEventType =
   | 'SERVICE_AUTH_FAILED'
   | 'SERVICE_SESSIONS_REVOKED'
   | 'LAB_RESULT_CREATED'
-  | 'LAB_ORDERS_CREATED';
+  | 'LAB_ORDERS_CREATED'
+  | 'HL7_PATIENT_IMPORTED'
+  | 'HL7_PATIENT_IMPORT_FAILED';
 
 export type AuditActor =
   | { type: 'admin'; administratorId: 1 }

@@ -167,3 +167,98 @@ git diff --check
 `tests/service-auth.test.ts`: все 12 migrations применены, 1 test file и 14 tests
 passed. После проверки временные database и role удалены; development database
 `medsoft` не изменялась.
+
+## 2026-11-21 — этап №3: HL7 v2.8 MLLP server и атомарный импорт
+
+Статус: серверная часть этапа завершена; desktop-интерфейс и XML adapter не
+разрабатывались.
+
+### Реализовано
+
+- отдельный TLS 1.3 TCP listener запускается вместе с HTTPS backend и требует
+  доверенный клиентский сертификат (`requestCert` и `rejectUnauthorized`);
+- stateful MLLP decoder поддерживает fragmented/combined chunks, несколько
+  последовательных сообщений, лимит размера и idle timeout; некорректный frame
+  закрывает только текущее соединение;
+- реализован узкий HL7 v2.8 codec для `ADT^A28^ADT_A05`, `MSH`, обязательного
+  `UAC`, `PID`, повторяющихся `DG1`, допустимых `EVN`/`PV1`, реальных номеров
+  полей, настраиваемых delimiters и escape-последовательностей;
+- JWT передаётся в согласованном UAC ED-профиле и для каждого сообщения
+  проверяется существующим service-auth механизмом; импорт разрешён только роли
+  `HL7_IMPORT`;
+- добавлена аутентифицированная проверка MLLP без создания пациента:
+  `QBP^Q11^QBP_Q11` с профилем `MEDSOFT_CONNECTION_TEST` и ответом
+  `ACK^Q11^ACK`;
+- пациент, медицинская карта, новые диагнозы, `DIAGNOSIS_ADDED` events и audit
+  успеха сохраняются в одной Prisma transaction; event author — сервисный
+  аккаунт без фиктивного медицинского работника;
+- composite unique external ID остаётся окончательной защитой от параллельных
+  дублей; повторный импорт возвращает `AE` и не меняет данные;
+- ACK возвращает `AA`, `AE` или `AR`, коррелирует `MSA-2` с исходным `MSH-10`,
+  а специальный `MSA-3` содержит HIS patient ID либо безопасный текст ошибки;
+- success/failure audit сохраняет subject, issuer, serial, validity и SHA-256
+  fingerprint клиентского сертификата; административный Audit UI показывает
+  ключевые идентифицирующие поля явно;
+- `PID-11` и `PID-13` разбираются в DTO, но не сохраняются, поскольку текущая
+  модель пациента не содержит адреса/телефона и расширение модели не входит в
+  этот этап;
+- существующая уникальность названия диагноза сохранена; максимальная длина
+  названия расширена до 160 символов для DG1.
+
+### Изменения схемы
+
+- `MedicalRecordEvent.workerId` стал nullable;
+- добавлен nullable `serviceAccountId` с FK/index и DB CHECK: ровно один actor
+  (`workerId` или `serviceAccountId`) обязан быть задан;
+- `Diagnosis.name` расширен до `VARCHAR(160)` без снятия существующей
+  уникальности.
+
+### Фактические проверки
+
+На отдельной временной PostgreSQL database `medsoft_lab4_stage3_test` с
+non-superuser ролью `his_lab4_stage3_test_user` выполнены все migrations и полный
+backend integration profile. После прогона database и role удалены; development
+database не изменялась.
+
+```powershell
+npm exec --workspace backend -- tsx scripts/run-lab4-stage3-integration.ts
+npm run test --workspace frontend -- AuditPage
+```
+
+Результаты на момент реализации:
+
+- Prisma migrate deploy: 13 migrations успешно применены на чистой БД;
+- backend integration: 15 files, 150 tests passed;
+- реальные TLS 1.3/mTLS тесты проверили доверенный, отсутствующий и недоверенный
+  client certificate, реальный MLLP exchange и JWT;
+- frontend Audit UI: 1 file, 1 test passed.
+
+Одноразовый runner временной БД после проверки удалён и не является частью
+проекта. Дополнительно выполнены:
+
+```powershell
+npm run prisma:validate
+npm run prisma:generate
+npm run test:unit --workspace backend
+npm run test --workspace frontend
+npm run typecheck --workspace backend
+npm run typecheck --workspace frontend
+npm run build --workspace backend
+npm run build --workspace frontend
+npm run certs:verify
+git diff --check
+```
+
+- backend unit: 11 files, 47 tests passed;
+- frontend: 8 files, 39 tests passed;
+- Prisma validate/generate, оба typecheck и оба build завершились успешно;
+- certificate chain, identity, EKU и SAN checks прошли;
+- frontend build сохранил известное предупреждение о chunk больше 500 kB, но
+  завершился успешно;
+- `git diff --check` не обнаружил whitespace errors.
+
+### Оставшаяся граница
+
+XML-схема и пример преподавателя по-прежнему отсутствуют. Точный XML adapter и
+desktop-клиент остаются следующим этапом; сервер не предполагает вымышленный XML
+контракт.

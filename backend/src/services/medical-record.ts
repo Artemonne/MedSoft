@@ -223,6 +223,12 @@ export const medicalRecordService = {
             isDeleted: true,
           },
         },
+        serviceAccount: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
   },

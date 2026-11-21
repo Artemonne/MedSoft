@@ -83,13 +83,15 @@ function EventHistory({ events }: { events: MedicalRecordEvent[] }) {
       const detail = 'text' in event.payload
         ? event.payload.text
         : `${event.payload.code} — ${event.payload.name}`;
-      const worker = `${fullName(event.worker)}, ${event.worker.position}`;
+      const actor = event.worker
+        ? `${fullName(event.worker)}, ${event.worker.position}${event.worker.isDeleted ? ' (удалён)' : ''}`
+        : `Сервисный аккаунт: ${event.serviceAccount?.name ?? 'неизвестен'}`;
       return <ListItem key={event.version} divider alignItems="flex-start">
         <ListItemText
           primary={<Stack direction="row" gap={1} alignItems="center" flexWrap="wrap"><Typography fontWeight={600}>{eventLabels[event.type]}</Typography><Chip label={`Версия ${event.version}`} size="small" variant="outlined" /></Stack>}
           secondary={<Box component="span" sx={{ display: 'block', mt: 0.5 }}>
             <Typography component="span" variant="body2" color="text.primary">{detail}</Typography><br />
-            {new Date(event.createdAt).toLocaleString('ru-RU')} · {worker}{event.worker.isDeleted ? ' (удалён)' : ''}
+            {new Date(event.createdAt).toLocaleString('ru-RU')} · {actor}
           </Box>}
         />
       </ListItem>;

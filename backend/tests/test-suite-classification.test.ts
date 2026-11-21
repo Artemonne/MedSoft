@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const unitTests = [
   'health.test.ts',
+  'hl7-codec.test.ts',
   'fhir-r5.unit.test.ts',
   'medical-record-replay.test.ts',
   'mllp-tls-config.test.ts',
@@ -23,6 +24,7 @@ const integrationTests = [
   'core-crud.test.ts',
   'fhir-r5.test.ts',
   'fhir-observation-create.test.ts',
+  'hl7-mllp.test.ts',
   'medical-record.test.ts',
   'laboratory.test.ts',
   'live-his-lis-e2e.test.ts',

@@ -74,9 +74,12 @@ HL7_MLLP_PORT=2575
 HL7_MLLP_TLS_KEY_PATH="../certificates/local/server.key.pem"
 HL7_MLLP_TLS_CERT_PATH="../certificates/local/server.cert.pem"
 HL7_MLLP_CLIENT_CA_PATH="../certificates/local/ca.cert.pem"
+HL7_MLLP_MAX_MESSAGE_BYTES=102400
+HL7_MLLP_IDLE_TIMEOUT_MS=10000
 ```
 
 Он принудительно устанавливает TLS 1.3, `requestCert=true` и
-`rejectUnauthorized=true`. На текущем этапе конфигурация подготовлена и
-тестируется отдельно; MLLP listener и HL7 frame processing относятся к следующему
-этапу.
+`rejectUnauthorized=true`. MLLP listener запускается вместе с backend отдельным
+TLS-сервером на указанном host/port; настройки не меняют требования обычного
+HTTPS API. Некорректные пути, порт, лимит или тайм-аут останавливают запуск с
+ошибкой конфигурации.

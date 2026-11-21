@@ -11,6 +11,8 @@ describe('MLLP mTLS configuration', () => {
         HL7_MLLP_TLS_KEY_PATH: 'mllp-server.key.pem',
         HL7_MLLP_TLS_CERT_PATH: 'mllp-server.cert.pem',
         HL7_MLLP_CLIENT_CA_PATH: 'client-ca.cert.pem',
+        HL7_MLLP_MAX_MESSAGE_BYTES: '65536',
+        HL7_MLLP_IDLE_TIMEOUT_MS: '5000',
       },
       readFile: (path) => {
         paths.push(path);
@@ -20,6 +22,8 @@ describe('MLLP mTLS configuration', () => {
 
     expect(configuration.host).toBe('127.0.0.1');
     expect(configuration.port).toBe(32575);
+    expect(configuration.maxMessageBytes).toBe(65_536);
+    expect(configuration.idleTimeoutMs).toBe(5_000);
     expect(paths).toEqual([
       'mllp-server.key.pem',
       'mllp-server.cert.pem',

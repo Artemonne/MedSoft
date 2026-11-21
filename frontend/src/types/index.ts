@@ -151,7 +151,8 @@ export interface MedicalRecordEventWorker {
 interface MedicalRecordEventBase {
   version: number;
   createdAt: string;
-  worker: MedicalRecordEventWorker;
+  worker: MedicalRecordEventWorker | null;
+  serviceAccount: { id: string; name: string } | null;
 }
 
 export type MedicalRecordEvent =

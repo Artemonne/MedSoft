@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 export interface MllpTlsConfiguration {
   host: string;
   port: number;
+  maxMessageBytes: number;
+  idleTimeoutMs: number;
   tls: TlsOptions;
 }
 
@@ -31,6 +33,14 @@ function nonEmpty(value: string | undefined, fallback: string, name: string): st
   return result;
 }
 
+function positiveInteger(value: string | undefined, fallback: number, name: string): number {
+  const parsed = Number(value ?? fallback);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+  return parsed;
+}
+
 export function loadMllpTlsConfiguration(options: LoadOptions = {}): MllpTlsConfiguration {
   const env = options.env ?? process.env;
   const readFile = options.readFile ?? readFileSync;
@@ -53,6 +63,8 @@ export function loadMllpTlsConfiguration(options: LoadOptions = {}): MllpTlsConf
   return {
     host: nonEmpty(env.HL7_MLLP_HOST, '127.0.0.1', 'HL7_MLLP_HOST'),
     port: port(env.HL7_MLLP_PORT),
+    maxMessageBytes: positiveInteger(env.HL7_MLLP_MAX_MESSAGE_BYTES, 102_400, 'HL7_MLLP_MAX_MESSAGE_BYTES'),
+    idleTimeoutMs: positiveInteger(env.HL7_MLLP_IDLE_TIMEOUT_MS, 10_000, 'HL7_MLLP_IDLE_TIMEOUT_MS'),
     tls: {
       key: readFile(keyPath),
       cert: readFile(certificatePath),

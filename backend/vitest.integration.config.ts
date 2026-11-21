@@ -13,6 +13,7 @@ export default defineConfig({
       'tests/core-crud.test.ts',
       'tests/fhir-r5.test.ts',
       'tests/fhir-observation-create.test.ts',
+      'tests/hl7-mllp.test.ts',
       'tests/medical-record.test.ts',
       'tests/laboratory.test.ts',
       'tests/security-model.test.ts',
