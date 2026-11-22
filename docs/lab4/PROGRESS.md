@@ -339,3 +339,58 @@ npm run package:hl7-importer
 сквозной acceptance-сценарий с основной HIS БД. Они относятся к следующему
 этапу. Windows package не подписан code-signing сертификатом и использует
 стандартную Electron icon; это не влияет на лабораторный протокол или проверки.
+
+## 2026-11-22 — этап №5: сквозная валидация
+
+Статус: автоматизированная сквозная проверка завершена; этап №6 не начинался.
+Полный отчёт находится в `docs/lab4/VALIDATION.md`.
+
+### Фактически проверено
+
+- реальная цепочка desktop main process → HTTPS token API → общий
+  `/api/testConnection` → TLS 1.3 mTLS → QBP/ADT MLLP → PostgreSQL → ACK →
+  desktop result;
+- два пациента и отдельные HIS ID, кириллица, диагнозы и certificate audit;
+- duplicate без изменения существующего пациента и без побочного диагноза;
+- rollback пациента и ранее созданного диагноза при ошибке следующего диагноза,
+  при этом независимый пациент успешно commit;
+- incorrect API key/JWT/signature/role/user JWT, forbidden HTTP operations;
+- missing/untrusted/expired client certificate, hostname mismatch и valid mTLS;
+- malformed/fragmented/combined MLLP, version/PID/UAC/type errors, ACK
+  correlation и timeout/UNKNOWN;
+- конкурентный duplicate и регрессии существующих ролей, HTTPS, CRUD, LIS/FHIR.
+
+### Изолированная среда
+
+Два последовательных прогона использовали автоматически созданные clean
+PostgreSQL databases `medsoft_lab4_stage5_test` и
+`medsoft_lab4_stage5_full_test` с отдельными non-superuser roles. Применены все
+13 migrations. После прогонов DB/roles и временные OpenSSL CA/server/client
+certificates удалены; development DB не изменялась. Использовались только
+синтетические пациенты.
+
+### Результаты команд
+
+```powershell
+npm run test:integration
+npm run test
+npm run typecheck
+npm run build
+git diff --check
+```
+
+- backend integration: 15 files, 150 tests passed;
+- desktop database E2E: 1 file, 1 test passed;
+- общий test: frontend 39, backend 47, LIS 21, HL7 importer 18 tests passed;
+- typecheck и build всех 4 workspaces прошли;
+- lint: BLOCKED — lint script/config в проекте отсутствуют;
+- XML преподавателя: BLOCKED — реальный XML/XSD не предоставлен;
+- сохранились только известные нефатальные bundle-size warnings.
+
+### Изменения по результатам
+
+Рабочих дефектов протокола или атомарности не обнаружено. Исправлены только
+ошибки нового validation harness: cross-workspace test вынесен в отдельный
+desktop integration profile и использует общий admin/JWT fixture. Расширены
+реальные проверки expired certificate, user JWT, hostname mismatch,
+отсутствующего PID и пустого `MSA-2`.

@@ -6,8 +6,9 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "set ELECTRON_RUN_AS_NODE=&& electron-vite dev",
-    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.integration.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "build": "npm run typecheck && electron-vite build",
     "package": "npm run build && electron-builder --win --dir"
   },

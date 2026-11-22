@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext", "rootDir": "..",
+    "strict": true, "esModuleInterop": true, "forceConsistentCasingInFileNames": true, "skipLibCheck": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["tests/**/*.integration.ts", "../backend/src/types/express.d.ts"]
+}

@@ -72,6 +72,7 @@ describe('desktop client against real HTTPS and mTLS/MLLP test servers', () => {
     };
     const message = buildConnectionTest('DESKTOP-TEST', 'header.payload.signature');
     await expect(client.exchange({ ...base, caCertificatePath: join(directory, 'client.pem') }, message.payload)).rejects.toThrow(/доверенным центром|TLS/);
+    await expect(client.exchange({ ...base, tlsServerName: 'wrong-host.test' }, message.payload)).rejects.toThrow(/TLS|сертификат/);
     mllpMode = 'close';
     await expect(client.exchange(base, message.payload)).rejects.toBeInstanceOf(UnknownOutcomeError);
     mllpMode = 'ack';

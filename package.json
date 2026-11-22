@@ -20,7 +20,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:unit": "npm run test:unit --workspace backend && npm run test --workspace frontend && npm run test --workspace lis && npm run test --workspace hl7-importer",
-    "test:integration": "npm run test:integration --workspace backend",
+    "test:integration": "npm run test:integration --workspace backend && npm run test:integration --workspace hl7-importer",
     "check": "npm run prisma:validate && npm run prisma:generate && npm run typecheck && npm run test:unit && npm run build",
     "certs:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-certificates.ps1",
     "certs:generate-client": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-client-certificate.ps1",

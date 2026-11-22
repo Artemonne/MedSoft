@@ -62,6 +62,7 @@ describe('HL7 v2.8 codec', () => {
     expect(() => parseHl7Message(adt().replace('^AP^jwt^A^', '^AP^jwt^Base64^'))).toThrow('AP/jwt/A');
     expect(() => parseHl7Message(adt().replace('20000102', '20990102'))).toThrow('non-future');
     expect(() => parseHl7Message(adt().split('\r').filter((segment) => !segment.startsWith('UAC')).join('\r'))).toThrow('UAC segment is required');
+    expect(() => parseHl7Message(adt().split('\r').filter((segment) => !segment.startsWith('PID')).join('\r'))).toThrow('PID segment is required');
     expect(() => parseHl7Message(adt().replace(`${uac()}\rPID`, `PID|||placeholder\r${uac()}\rPID`))).toThrow('immediately after MSH');
     try {
       parseHl7Message(adt().replace('ADT^A28^ADT_A05', 'ADT^A08^ADT_A01'));

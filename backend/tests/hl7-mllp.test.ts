@@ -23,6 +23,8 @@ interface Certificates {
   clientCertificate: Buffer;
   untrustedKey: Buffer;
   untrustedCertificate: Buffer;
+  expiredKey: Buffer;
+  expiredCertificate: Buffer;
 }
 
 function openssl(): string {
@@ -45,6 +47,8 @@ function generateCertificates(): Certificates {
   runOpenSsl(directory, ['req', '-new', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-subj', '/CN=HL7 Integration Test', '-keyout', 'client.key.pem', '-out', 'client.csr.pem']);
   runOpenSsl(directory, ['x509', '-req', '-sha256', '-days', '2', '-in', 'client.csr.pem', '-CA', 'ca.cert.pem', '-CAkey', 'ca.key.pem', '-CAcreateserial', '-extfile', 'client.cnf', '-extensions', 'v3', '-out', 'client.cert.pem']);
   runOpenSsl(directory, ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-days', '2', '-subj', '/CN=Untrusted Client', '-addext', 'basicConstraints=critical,CA:false', '-addext', 'extendedKeyUsage=clientAuth', '-keyout', 'untrusted.key.pem', '-out', 'untrusted.cert.pem']);
+  runOpenSsl(directory, ['req', '-new', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-subj', '/CN=Expired Client', '-keyout', 'expired.key.pem', '-out', 'expired.csr.pem']);
+  runOpenSsl(directory, ['x509', '-req', '-sha256', '-days', '0', '-in', 'expired.csr.pem', '-CA', 'ca.cert.pem', '-CAkey', 'ca.key.pem', '-CAcreateserial', '-extfile', 'client.cnf', '-extensions', 'v3', '-out', 'expired.cert.pem']);
   return {
     directory,
     ca: readFileSync(join(directory, 'ca.cert.pem')),
@@ -54,6 +58,8 @@ function generateCertificates(): Certificates {
     clientCertificate: readFileSync(join(directory, 'client.cert.pem')),
     untrustedKey: readFileSync(join(directory, 'untrusted.key.pem')),
     untrustedCertificate: readFileSync(join(directory, 'untrusted.cert.pem')),
+    expiredKey: readFileSync(join(directory, 'expired.key.pem')),
+    expiredCertificate: readFileSync(join(directory, 'expired.cert.pem')),
   };
 }
 
@@ -93,12 +99,14 @@ describe('HL7 MLLP mTLS integration', () => {
   let lisServiceId: string;
   let accessToken: string;
   let lisAccessToken: string;
+  let userAccessToken: string;
   const sources = ['TEST-SOURCE'];
   const diagnosisCodes = new Set<string>();
 
   beforeAll(async () => {
     certificates = generateCertificates();
     fixture = await createAuthorizationFixture([MedicalWorkerRole.DOCTOR], true);
+    userAccessToken = fixture.users.get(MedicalWorkerRole.DOCTOR)!.accessToken;
     const service = await serviceAccountService.create({ name: `HL7 Test ${randomUUID()}`, role: ServiceAccountRole.HL7_IMPORT }, 1);
     serviceId = service.account.id;
     accessToken = (await serviceAuthService.exchangeApiKey(service.apiKey, randomUUID())).accessToken;
@@ -131,12 +139,12 @@ describe('HL7 MLLP mTLS integration', () => {
     await prisma.$disconnect();
   });
 
-  async function exchange(payloads: string[], options?: { split?: boolean; certificate?: 'trusted' | 'untrusted' | 'none' }): Promise<string[]> {
+  async function exchange(payloads: string[], options?: { split?: boolean; certificate?: 'trusted' | 'untrusted' | 'expired' | 'none' }): Promise<string[]> {
     const certificate = options?.certificate ?? 'trusted';
     return new Promise((resolve, reject) => {
       const socket = connectTls({
         host: '127.0.0.1', port, servername: 'localhost', ca: certificates.ca, rejectUnauthorized: true, minVersion: 'TLSv1.3', maxVersion: 'TLSv1.3',
-        ...(certificate === 'trusted' ? { key: certificates.clientKey, cert: certificates.clientCertificate } : certificate === 'untrusted' ? { key: certificates.untrustedKey, cert: certificates.untrustedCertificate } : {}),
+        ...(certificate === 'trusted' ? { key: certificates.clientKey, cert: certificates.clientCertificate } : certificate === 'untrusted' ? { key: certificates.untrustedKey, cert: certificates.untrustedCertificate } : certificate === 'expired' ? { key: certificates.expiredKey, cert: certificates.expiredCertificate } : {}),
       });
       const decoder = new MllpDecoder(102_400);
       const responses: string[] = [];
@@ -166,7 +174,7 @@ describe('HL7 MLLP mTLS integration', () => {
     });
   }
 
-  async function expectTlsRejection(certificate: 'untrusted' | 'none') {
+  async function expectTlsRejection(certificate: 'untrusted' | 'expired' | 'none') {
     await expect(exchange([connectionTest(accessToken, randomUUID())], { certificate })).rejects.toThrow();
   }
 
@@ -234,10 +242,11 @@ describe('HL7 MLLP mTLS integration', () => {
       adt('header.payload.signature', `invalid-${randomUUID()}`, 'invalid-jwt'),
       adt(expired.accessToken, `expired-${randomUUID()}`, 'expired-jwt'),
       adt(lisAccessToken, `wrong-role-${randomUUID()}`, 'wrong-role'),
+      adt(userAccessToken, `user-token-${randomUUID()}`, 'user-token'),
     ];
     const results = (await exchange(messages)).map(msa);
-    expect(results.map((item) => item.code)).toEqual(['AE', 'AE', 'AE']);
-    expect(results.map((item) => item.controlId)).toEqual(['invalid-jwt', 'expired-jwt', 'wrong-role']);
+    expect(results.map((item) => item.code)).toEqual(['AE', 'AE', 'AE', 'AE']);
+    expect(results.map((item) => item.controlId)).toEqual(['invalid-jwt', 'expired-jwt', 'wrong-role', 'user-token']);
     expect(results[2].text).toContain('HL7 Import role');
   });
 
@@ -274,6 +283,7 @@ describe('HL7 MLLP mTLS integration', () => {
   it('rejects missing and untrusted client certificates before HL7 processing', async () => {
     await expectTlsRejection('none');
     await expectTlsRejection('untrusted');
+    await expectTlsRejection('expired');
   });
 
   it('closes a malformed frame but remains available for a new connection', async () => {

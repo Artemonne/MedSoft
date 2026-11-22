@@ -33,6 +33,7 @@ describe('desktop HL7 codec', () => {
     expect(parseAck(ack('request-1'), 'request-1', 'A28')).toEqual({ code: 'AA', text: '42' });
     expect(parseAck(ack('request-1', 'AE', 'Дубликат'), 'request-1', 'A28')).toEqual({ code: 'AE', text: 'Дубликат' });
     expect(() => parseAck(ack('other'), 'request-1', 'A28')).toThrow('MSA-2');
+    expect(() => parseAck(ack('', 'AA', '42'), 'request-1', 'A28')).toThrow('MSA-2');
     expect(() => parseAck('MSH|^~\\&|A|B|C|D|20261122000000||ACK^A28^ACK|ack|P|2.8\r', 'request-1', 'A28')).toThrow('MSA');
   });
 });
