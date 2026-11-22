@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Демонстрационный fixture. Это НЕ официальный формат преподавателя. -->
+<medsoft-demo-patients>
+  <patient externalId="DEMO-001">
+    <firstName>Анна</firstName>
+    <middleName>Игоревна</middleName>
+    <lastName>Иванова</lastName>
+    <birthDate>1992-04-17</birthDate>
+    <sex>FEMALE</sex>
+    <address>Москва, улица Тестовая, 1</address>
+    <phone>+79990000001</phone>
+    <diagnoses>
+      <diagnosis code="A00001" name="Демонстрационный диагноз" />
+    </diagnoses>
+  </patient>
+  <patient externalId="DEMO-002">
+    <firstName>Пётр</firstName>
+    <lastName>Сидоров</lastName>
+    <birthDate>1985-11-03</birthDate>
+    <sex>MALE</sex>
+    <diagnoses>
+      <diagnosis code="B00002" name="Второй демонстрационный диагноз" />
+      <diagnosis code="C00003" name="Текст с &amp; и кириллицей" />
+    </diagnoses>
+  </patient>
+</medsoft-demo-patients>

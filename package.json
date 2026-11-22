@@ -5,18 +5,21 @@
   "workspaces": [
     "frontend",
     "backend",
-    "lis"
+    "lis",
+    "hl7-importer"
   ],
   "scripts": {
     "dev": "concurrently -n frontend,backend -c cyan,green \"npm run dev --workspace frontend\" \"npm run dev --workspace backend\"",
     "dev:frontend": "npm run dev --workspace frontend",
     "dev:backend": "npm run dev --workspace backend",
     "dev:lis": "npm run dev --workspace lis",
+    "dev:hl7-importer": "npm run dev --workspace hl7-importer",
     "package:lis": "npm run package --workspace lis",
+    "package:hl7-importer": "npm run package --workspace hl7-importer",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "test:unit": "npm run test:unit --workspace backend && npm run test --workspace frontend && npm run test --workspace lis",
+    "test:unit": "npm run test:unit --workspace backend && npm run test --workspace frontend && npm run test --workspace lis && npm run test --workspace hl7-importer",
     "test:integration": "npm run test:integration --workspace backend",
     "check": "npm run prisma:validate && npm run prisma:generate && npm run typecheck && npm run test:unit && npm run build",
     "certs:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File certificates/generate-certificates.ps1",

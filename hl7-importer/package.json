@@ -1,0 +1,48 @@
+{
+  "name": "medsoft-hl7-importer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "set ELECTRON_RUN_AS_NODE=&& electron-vite dev",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "test": "vitest run",
+    "build": "npm run typecheck && electron-vite build",
+    "package": "npm run build && electron-builder --win --dir"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.5",
+    "@mui/material": "^7.3.5",
+    "fast-xml-parser": "^5.3.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
+    "electron-vite": "6.0.0",
+    "jsdom": "^27.1.0",
+    "typescript": "^5.9.3",
+    "vite": "7.3.8",
+    "vitest": "^5.1.0"
+  },
+  "build": {
+    "appId": "ru.medsoft.hl7importer",
+    "productName": "MedSoft HL7 Importer",
+    "asar": true,
+    "files": ["out/**/*", "package.json"],
+    "directories": { "output": "release" },
+    "win": { "target": ["dir"] }
+  }
+}

@@ -30,6 +30,8 @@ backend/dist/
 lis/dist/
 lis/out/
 lis/release/
+hl7-importer/out/
+hl7-importer/release/
 
 # Vite
 .vite/

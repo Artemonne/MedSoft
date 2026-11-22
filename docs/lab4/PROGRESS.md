@@ -262,3 +262,80 @@ git diff --check
 XML-схема и пример преподавателя по-прежнему отсутствуют. Точный XML adapter и
 desktop-клиент остаются следующим этапом; сервер не предполагает вымышленный XML
 контракт.
+
+## 2026-11-22 — этап №4: desktop XML → HL7 Import
+
+Статус: отдельное desktop-приложение реализовано и собрано; финальный аудит и
+сквозная проверка с production-подобным HIS оставлены следующему этапу.
+
+### Реализовано
+
+- добавлен workspace `hl7-importer` на Electron 45, React 19, MUI, Zod и
+  `fast-xml-parser`; существующий LIS не изменялся;
+- Electron window использует sandbox, context isolation, отключённый Node в
+  renderer, CSP, запрещённые permissions/navigation/window.open и проверку
+  источника каждого IPC-вызова;
+- настройки содержат HTTP(S) API, MLLP host/port, TLS server name, Source System
+  ID, пути certificate/key/CA и timeout; файлы выбираются системными диалогами;
+- проверка подключения последовательно выполняет API-key exchange, общий
+  `GET /api/testConnection`, реальный TLS 1.3 mTLS handshake, проверку CA/SAN,
+  `QBP^Q11^QBP_Q11` и коррелированный `ACK^Q11^ACK`;
+- UI показывает независимые результаты API и MLLP, Subject/CN, Issuer, срок,
+  serial, SHA-256 fingerprint и результат TLS verification;
+- API key и access token не сохраняются; refresh token шифруется Electron
+  `safeStorage`, а несекретные настройки сохраняются отдельным JSON в userData;
+- существующий refresh endpoint используется до истечения access token и один
+  раз после явного JWT rejection; ошибка refresh показывается как ошибка
+  авторизации;
+- для каждого пациента создаётся отдельный `ADT^A28^ADT_A05` с новым MSH-10,
+  UAC JWT, PID, EVN/PV1 и повторяющимися DG1; HL7 ST значения экранируются;
+- клиент проверяет тип/version ACK, `MSA-1`, корреляцию `MSA-2` и читает HIS ID
+  или ошибку из `MSA-3`; разрыв после отправки помечается `UNKNOWN` без retry;
+- импорт выполняется последовательно вне renderer thread, UI показывает список,
+  прогресс, индивидуальный status/HIS ID/error, счётчики и прокручиваемую таблицу;
+- добавлена классификация неправильного адреса, недоступности, timeout, TLS,
+  недоверенного сертификата, authentication, forbidden и invalid ACK.
+
+### XML
+
+XML преподавателя и XSD по-прежнему отсутствуют. Добавлены изолированный
+`DemoXmlAdapter` и `docs/lab4/demo-patients.xml`, оба явно обозначенные как
+демонстрационные, а не официальные. Адаптер:
+
+- принимает не более 2 МБ корректного UTF-8;
+- запрещает `DOCTYPE` и `ENTITY`, не выполняет сетевое разрешение;
+- валидирует обязательные поля, даты, пол и шестисимвольные diagnosis codes;
+- сохраняет кириллицу и пропускает отдельную повреждённую запись с сообщением,
+  не теряя остальные корректные записи.
+
+Совместимость с форматом преподавателя остаётся внешней зависимостью и требует
+реального обезличенного fixture. Инструкция: `docs/lab4/DESKTOP.md`.
+
+### Фактические проверки
+
+```powershell
+npm install
+npm run typecheck --workspace hl7-importer
+npm run typecheck
+npm run test --workspace hl7-importer
+npm run build --workspace hl7-importer
+npm run package:hl7-importer
+```
+
+- typecheck main/preload/renderer и общий typecheck всех workspaces прошли;
+- unit/UI/live transport: 7 test files, 18 tests passed;
+- временный test server подтвердил настоящий HTTPS token exchange и
+  `/api/testConnection`, TLS 1.3 mTLS, hostname/CA verification, QBP/ACK;
+- отдельно проверены недоверенный server certificate и отсутствие ACK после
+  отправки с результатом `UNKNOWN`;
+- Electron production build завершён;
+- Windows x64 unpacked package создан в
+  `hl7-importer/release/win-unpacked/MedSoft HL7 Importer.exe` без включения
+  сертификатов, ключей или данных пациентов.
+
+### Граница этапа
+
+Не выполнялись общий финальный аудит, реальный импорт XML преподавателя и полный
+сквозной acceptance-сценарий с основной HIS БД. Они относятся к следующему
+этапу. Windows package не подписан code-signing сертификатом и использует
+стандартную Electron icon; это не влияет на лабораторный протокол или проверки.
