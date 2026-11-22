@@ -8,6 +8,7 @@ export class ImporterError extends Error {
     this.name = 'ImporterError';
   }
 }
+
 export function userMessage(error: unknown): string {
   if (error instanceof ImporterError) return error.message;
   if (error instanceof ZodError) return `Некорректные настройки: ${error.issues.map((issue) => issue.message).join('; ')}`;
@@ -24,4 +25,3 @@ export function networkError(error: unknown, context: string): ImporterError {
   if (code === 'ETIMEDOUT' || error instanceof DOMException && error.name === 'TimeoutError') return new ImporterError('TIMEOUT', `${context}: превышено время ожидания.`, { cause: error });
   return new ImporterError('UNAVAILABLE', `${context}: не удалось установить соединение.`, { cause: error });
 }
-
