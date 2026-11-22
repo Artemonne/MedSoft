@@ -110,4 +110,3 @@ describe('desktop → API → mTLS/MLLP → HIS → database → ACK → desktop
     expect(await prisma.diagnosis.findUnique({ where: { code: independentCode } })).not.toBeNull();
   });
 });
-
